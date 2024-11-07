@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Upload</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="page-layout">
+        <div class="upload-container">
+            <h1>File Upload</h1>
+            <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+                <p id="uploadText">Click or drag files here to upload</p>
+                <input type="file" id="fileInput" onchange="handleFileSelect()" />
+                <p class="file-info">Supported files: Images, Text, Audio, 3D Models</p>
+            </div>
+            <button id="preprocessBtn" class="preprocess-btn disabled" onclick="preprocess()" disabled>
+                Preprocess
+            </button>
+        </div>
+        <div class="content-container">
+            <div id="output"></div>
+        </div>
+    </div>
+    <script src="/static/script.js"></script>
+</body>
+</html>

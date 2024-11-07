@@ -1,0 +1,191 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #00b09b 0%, #96c93d 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.page-layout {
+    display: flex;
+    gap: 20px;
+    width: 90%;
+    max-width: 1200px;
+    margin: 20px auto;
+}
+
+.upload-container {
+    flex: 0 0 400px;
+    background: white;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    text-align: center;
+}
+
+h1 {
+    color: #2e7d32;
+    margin-bottom: 20px;
+    font-size: 24px;
+}
+
+.upload-area {
+    border: 2px dashed #00b09b;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.upload-area:hover {
+    background: #f8f9fa;
+    border-color: #2e7d32;
+}
+
+#fileInput {
+    display: none;
+}
+
+.upload-btn {
+    background: #00b09b;
+    color: white;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.3s ease;
+}
+
+.upload-btn:hover {
+    background: #2e7d32;
+    transform: translateY(-2px);
+}
+
+#output {
+    margin-top: 20px;
+    padding: 15px;
+    border-radius: 6px;
+    background: #f8f9fa;
+    min-height: 50px;
+}
+
+.file-info {
+    margin-top: 10px;
+    color: #666;
+    font-size: 14px;
+}
+
+#uploadText {
+    margin: 0;
+    transition: all 0.3s ease;
+    font-size: 18px;
+}
+
+.file-selected {
+    color: #2e7d32;
+    font-weight: 600;
+    font-size: 32px;
+    margin: 15px 0;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+}
+
+.file-selected:hover {
+    color: #00b09b;
+}
+
+@keyframes popIn {
+    0% { transform: scale(0.95); }
+    70% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.file-selected {
+    animation: popIn 0.3s ease forwards;
+}
+
+.content-container {
+    flex: 1;
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    min-height: 400px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+#output {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: monospace;
+    line-height: 1.5;
+}
+
+/* Scrollbar styling */
+.content-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.content-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.content-container::-webkit-scrollbar-thumb {
+    background: #00b09b;
+    border-radius: 4px;
+}
+
+.content-container::-webkit-scrollbar-thumb:hover {
+    background: #2e7d32;
+}
+
+/* Media query for mobile responsiveness */
+@media (max-width: 768px) {
+    .page-layout {
+        flex-direction: column;
+    }
+    
+    .upload-container {
+        flex: none;
+        width: 100%;
+    }
+    
+    .content-container {
+        max-height: 400px;
+    }
+}
+
+/* Add these styles for the preprocess button */
+.preprocess-btn {
+    background: #00b09b;
+    color: white;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.3s ease;
+    margin-top: 20px;
+}
+
+.preprocess-btn:hover:not(.disabled) {
+    background: #2e7d32;
+    transform: translateY(-2px);
+}
+
+.preprocess-btn.disabled {
+    background: #cccccc;
+    cursor: not-allowed;
+    transform: none;
+}
