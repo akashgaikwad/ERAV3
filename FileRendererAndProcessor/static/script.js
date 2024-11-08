@@ -279,8 +279,10 @@ async function handleAction() {
 
     try {
         let result = null;
+        let preprocessResult = null;
         const isImage = fileInput.files[0].type.startsWith('image/');
         const isAudio = fileInput.files[0].type.startsWith('audio/');
+        const isText = fileInput.files[0].type.startsWith('text/');
         
         // Handle preprocessing if selected
         if (preprocessingType) {
@@ -296,13 +298,33 @@ async function handleAction() {
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            result = await response.json();
+            preprocessResult = await response.json();
+            result = preprocessResult;
         }
         
         // Handle augmentation if selected
         if (augmentationType) {
             const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
+            
+            if (preprocessResult) {
+                if (isText) {
+                    // For text, create a new blob from the preprocessed text
+                    const textToAugment = preprocessResult.processed_text || preprocessResult.original_text;
+                    const blob = new Blob([textToAugment], { type: 'text/plain' });
+                    formData.append('file', blob, 'processed.txt');
+                } else if (isImage && preprocessResult.processed_image_url) {
+                    const imgResponse = await fetch(preprocessResult.processed_image_url);
+                    const blob = await imgResponse.blob();
+                    formData.append('file', blob, 'processed.png');
+                } else if (isAudio && preprocessResult.processed_audio_url) {
+                    const audioResponse = await fetch(preprocessResult.processed_audio_url);
+                    const blob = await audioResponse.blob();
+                    formData.append('file', blob, 'processed.wav');
+                }
+            } else {
+                formData.append('file', fileInput.files[0]);
+            }
+            
             formData.append('augmentation_type', augmentationType);
             
             const response = await fetch('/api/augment', {
@@ -313,72 +335,20 @@ async function handleAction() {
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            result = await response.json();
+            const augmentResult = await response.json();
+            
+            // Merge results while preserving preprocessing information
+            result = {
+                ...preprocessResult,
+                ...augmentResult,
+                preprocessing_operation: preprocessResult?.preprocessing_operation,
+                augmentation_operation: augmentResult.augmentation_operation || augmentResult.operation
+            };
         }
         
         // Display the results
         if (result) {
-            if (isImage) {
-                // Image display code (unchanged)
-                output.innerHTML = `
-                    <h3>Processing Results:</h3>
-                    <div class="image-results">
-                        <div class="image-container">
-                            <p><strong>Original Image:</strong></p>
-                            <img src="${URL.createObjectURL(fileInput.files[0])}" alt="Original">
-                        </div>
-                        ${result.processed_image_url ? `
-                            <div class="image-container">
-                                <p><strong>Preprocessed Image:</strong></p>
-                                <img src="${result.processed_image_url}" alt="Preprocessed">
-                                <p><strong>Operation:</strong> ${result.operation}</p>
-                            </div>
-                        ` : ''}
-                        ${result.augmented_image_url ? `
-                            <div class="image-container">
-                                <p><strong>Augmented Image:</strong></p>
-                                <img src="${result.augmented_image_url}" alt="Augmented">
-                                <p><strong>Operation:</strong> ${result.operation}</p>
-                            </div>
-                        ` : ''}
-                    </div>
-                `;
-            } 
-            else if (isAudio) {
-                output.innerHTML = `
-                    <h3>Processing Results:</h3>
-                    <div class="audio-results">
-                        <div class="audio-container">
-                            <p><strong>Original Audio:</strong></p>
-                            <audio controls>
-                                <source src="${URL.createObjectURL(fileInput.files[0])}" type="${fileInput.files[0].type}">
-                            </audio>
-                        </div>
-                        
-                        ${result.processed_audio_url ? `
-                            <div class="audio-container">
-                                <p><strong>Preprocessed Audio:</strong></p>
-                                <audio controls>
-                                    <source src="${result.processed_audio_url}" type="audio/wav">
-                                </audio>
-                                <p><strong>Operation:</strong> ${result.operation}</p>
-                            </div>
-                        ` : ''}
-                        
-                        ${result.augmented_audio_url ? `
-                            <div class="audio-container">
-                                <p><strong>Augmented Audio:</strong></p>
-                                <audio controls>
-                                    <source src="${result.augmented_audio_url}" type="audio/wav">
-                                </audio>
-                                <p><strong>Operation:</strong> ${result.operation}</p>
-                            </div>
-                        ` : ''}
-                    </div>
-                `;
-            }
-            else {
-                // Text display (unchanged)
+            if (isText) {
                 output.innerHTML = `
                     <h3>Processing Results:</h3>
                     ${result.original_text ? `
@@ -391,6 +361,9 @@ async function handleAction() {
                         <div class="text-block">
                             <p><strong>Preprocessed Text:</strong></p>
                             <pre>${result.processed_text}</pre>
+                            ${result.preprocessing_operation ? `
+                                <p><strong>Preprocessing:</strong> ${result.preprocessing_operation}</p>
+                            ` : ''}
                         </div>
                     ` : ''}
                     ${result.augmented_text ? `
@@ -398,9 +371,70 @@ async function handleAction() {
                             <p><strong>Augmented Text:</strong></p>
                             <pre>${result.augmented_text}</pre>
                             ${result.words_replaced ? `<p><strong>Words Replaced:</strong> ${result.words_replaced}</p>` : ''}
-                            ${result.operation ? `<p><strong>Operation:</strong> ${result.operation}</p>` : ''}
+                            ${result.augmentation_operation ? `
+                                <p><strong>Augmentation:</strong> ${result.augmentation_operation}</p>
+                            ` : ''}
                         </div>
                     ` : ''}
+                `;
+            } else if (isImage) {
+                output.innerHTML = `
+                    <h3>Processing Results:</h3>
+                    <div class="image-results">
+                        <div class="image-container">
+                            <p><strong>Original Image:</strong></p>
+                            <img src="${URL.createObjectURL(fileInput.files[0])}" alt="Original">
+                        </div>
+                        ${result.processed_image_url ? `
+                            <div class="image-container">
+                                <p><strong>Preprocessed Image:</strong></p>
+                                <img src="${result.processed_image_url}" alt="Preprocessed">
+                                ${result.operation ? `<p><strong>Preprocessing:</strong> ${result.operation}</p>` : ''}
+                            </div>
+                        ` : ''}
+                        ${result.augmented_image_url ? `
+                            <div class="image-container">
+                                <p><strong>Augmented Image:</strong></p>
+                                <img src="${result.augmented_image_url}" alt="Augmented">
+                                ${result.operation ? `<p><strong>Augmentation:</strong> ${result.operation}</p>` : ''}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            } else if (isAudio) {
+                output.innerHTML = `
+                    <h3>Processing Results:</h3>
+                    <div class="audio-results">
+                        <div class="audio-container">
+                            <p><strong>Original Audio:</strong></p>
+                            <audio controls>
+                                <source src="${URL.createObjectURL(fileInput.files[0])}" type="${fileInput.files[0].type}">
+                                Your browser does not support the audio element.
+                            </audio>
+                        </div>
+                        
+                        ${result.processed_audio_url ? `
+                            <div class="audio-container">
+                                <p><strong>Preprocessed Audio:</strong></p>
+                                <audio controls>
+                                    <source src="${result.processed_audio_url}" type="audio/wav">
+                                    Your browser does not support the audio element.
+                                </audio>
+                                ${result.operation ? `<p><strong>Preprocessing:</strong> ${result.operation}</p>` : ''}
+                            </div>
+                        ` : ''}
+                        
+                        ${result.augmented_audio_url ? `
+                            <div class="audio-container">
+                                <p><strong>Augmented Audio:</strong></p>
+                                <audio controls>
+                                    <source src="${result.augmented_audio_url}" type="audio/wav">
+                                    Your browser does not support the audio element.
+                                </audio>
+                                ${result.operation ? `<p><strong>Augmentation:</strong> ${result.operation}</p>` : ''}
+                            </div>
+                        ` : ''}
+                    </div>
                 `;
             }
         }

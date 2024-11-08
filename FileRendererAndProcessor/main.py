@@ -91,42 +91,38 @@ def tokenize(text):
 
 def process_text(text: str, preprocessing_type: str) -> dict:
     """Process text based on selected preprocessing type"""
-    if preprocessing_type == "remove_stopwords":
-        tokens = tokenize(text)
-        filtered_tokens = [word for word in tokens if word.lower() not in STOP_WORDS]
-        processed_text = ' '.join(filtered_tokens)
+    try:
+        original_text = text
+        
+        if preprocessing_type == "remove_stopwords":
+            tokens = tokenize(text)
+            filtered_tokens = [word for word in tokens if word.lower() not in STOP_WORDS]
+            processed_text = ' '.join(filtered_tokens)
+            operation = "stopwords removed"
+            
+        elif preprocessing_type == "lowercase":
+            processed_text = text.lower()
+            operation = "text converted to lowercase"
+            
+        elif preprocessing_type == "tokenize":
+            processed_text = ' '.join(tokenize(text))
+            operation = "text tokenized"
+            
+        elif preprocessing_type == "remove_punctuation":
+            processed_text = text.translate(str.maketrans("", "", string.punctuation))
+            operation = "punctuation removed"
+            
+        else:
+            raise ValueError(f"Unsupported preprocessing type: {preprocessing_type}")
+            
         return {
-            "original_text": text,
+            "original_text": original_text,
             "processed_text": processed_text,
-            "removed_words": len(tokens) - len(filtered_tokens)
+            "preprocessing_operation": operation
         }
-    
-    elif preprocessing_type == "lowercase":
-        processed_text = text.lower()
-        return {
-            "original_text": text,
-            "processed_text": processed_text,
-            "operation": "converted to lowercase"
-        }
-    
-    elif preprocessing_type == "remove_punctuation":
-        processed_text = text.translate(str.maketrans("", "", string.punctuation))
-        return {
-            "original_text": text,
-            "processed_text": processed_text,
-            "operation": "removed punctuation"
-        }
-    
-    elif preprocessing_type == "tokenize":
-        tokens = tokenize(text)
-        return {
-            "original_text": text,
-            "tokens": tokens,
-            "token_count": len(tokens)
-        }
-    
-    else:
-        raise ValueError(f"Unsupported preprocessing type: {preprocessing_type}")
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 def get_synonyms(word):
     """Get synonyms for a word using WordNet"""
@@ -296,127 +292,114 @@ def augment_image(image: Image.Image, augmentation_type: str) -> dict:
 def process_audio(audio_data: bytes, preprocessing_type: str) -> dict:
     """Process audio based on selected preprocessing type"""
     try:
-        # Save the uploaded audio temporarily
-        temp_path = os.path.join("static/uploads", "temp_audio.wav")
-        with open(temp_path, "wb") as f:
-            f.write(audio_data)
+        # Convert bytes to numpy array
+        audio_bytes = io.BytesIO(audio_data)
+        sample_rate, audio = wavfile.read(audio_bytes)
         
-        # Read the audio file
-        sample_rate, audio = wavfile.read(temp_path)
+        # Convert to mono if stereo
+        if len(audio.shape) > 1:
+            audio = np.mean(audio, axis=1)
         
-        # Convert to float32 for processing
-        audio = audio.astype(np.float32) / 32767.0
+        processed_audio = audio
         
         if preprocessing_type == "normalize_audio":
-            # Normalize audio
-            processed_audio = audio / np.max(np.abs(audio))
+            processed_audio = processed_audio / np.max(np.abs(processed_audio))
             operation = "audio normalized"
             
         elif preprocessing_type == "trim_silence":
-            # Simple silence trimming
+            # Simple silence trimming (adjust threshold as needed)
             threshold = 0.01
-            mask = np.abs(audio) > threshold
-            processed_audio = audio[mask]
+            mask = np.abs(processed_audio) > threshold
+            processed_audio = processed_audio[mask]
             operation = "silence trimmed"
             
         elif preprocessing_type == "resample":
-            # Resample to half the original sample rate
-            target_sr = sample_rate // 2
-            processed_audio = signal.resample(audio, int(len(audio) * target_sr / sample_rate))
-            sample_rate = target_sr
-            operation = f"resampled to {target_sr}Hz"
+            # Resample to 22050 Hz
+            target_rate = 22050
+            processed_audio = signal.resample(processed_audio, 
+                                           int(len(processed_audio) * target_rate / sample_rate))
+            sample_rate = target_rate
+            operation = f"resampled to {target_rate}Hz"
             
         elif preprocessing_type == "noise_reduction":
-            # Simple noise reduction using a low-pass filter
-            b, a = signal.butter(3, 0.1)
-            processed_audio = signal.filtfilt(b, a, audio)
+            # Simple noise reduction (adjust parameters as needed)
+            processed_audio = signal.medfilt(processed_audio, kernel_size=3)
             operation = "noise reduced"
             
         else:
             raise ValueError(f"Unsupported preprocessing type: {preprocessing_type}")
         
-        # Convert back to int16 and save
-        processed_audio = (processed_audio * 32767).astype(np.int16)
-        output_path = os.path.join("static/uploads", f"processed_audio_{int(time.time())}.wav")
-        wavfile.write(output_path, sample_rate, processed_audio)
-        
-        # Clean up temp file
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
+        # Convert processed audio back to bytes
+        output_bytes = io.BytesIO()
+        wavfile.write(output_bytes, sample_rate, processed_audio.astype(np.float32))
         
         return {
-            "processed_audio_url": f"/static/uploads/{os.path.basename(output_path)}",
+            "processed_audio": output_bytes.getvalue(),
             "operation": operation
         }
         
     except Exception as e:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
         raise HTTPException(status_code=500, detail=str(e))
 
 def augment_audio(audio_data: bytes, augmentation_type: str) -> dict:
     """Augment audio based on selected augmentation type"""
     try:
-        # Save the uploaded audio temporarily
-        temp_path = os.path.join("static/uploads", "temp_audio.wav")
-        with open(temp_path, "wb") as f:
-            f.write(audio_data)
+        # Convert bytes to numpy array
+        audio_bytes = io.BytesIO(audio_data)
+        sample_rate, audio = wavfile.read(audio_bytes)
         
-        # Read the audio file
-        sample_rate, audio = wavfile.read(temp_path)
-        audio = audio.astype(np.float32) / 32767.0
+        # Convert to mono if stereo
+        if len(audio.shape) > 1:
+            audio = np.mean(audio, axis=1)
+        
+        augmented_audio = audio
         
         if augmentation_type == "time_stretch":
-            # Simple time stretching (slower/faster)
-            factor = np.random.uniform(0.8, 1.2)
-            augmented_audio = signal.resample(audio, int(len(audio) * factor))
-            operation = f"time stretched by factor {factor:.2f}"
+            # Time stretching (speed up/slow down)
+            stretch_factor = 0.8  # Slow down to 80% speed
+            augmented_audio = signal.resample(augmented_audio, 
+                                           int(len(augmented_audio) * (1/stretch_factor)))
+            operation = f"time stretched by factor {stretch_factor}"
             
         elif augmentation_type == "pitch_shift":
-            # Simple pitch shifting using resampling
-            factor = np.random.uniform(0.8, 1.2)
-            augmented_audio = signal.resample(audio, int(len(audio) * factor))
+            # Simple pitch shift using resampling
+            pitch_factor = 1.2  # Increase pitch by 20%
+            augmented_audio = signal.resample(augmented_audio, 
+                                           int(len(augmented_audio) * pitch_factor))
             augmented_audio = signal.resample(augmented_audio, len(audio))
-            operation = "pitch shifted"
+            operation = f"pitch shifted by factor {pitch_factor}"
             
         elif augmentation_type == "add_noise":
             # Add random noise
-            noise_level = 0.005
-            noise = np.random.normal(0, noise_level, len(audio))
-            augmented_audio = audio + noise
+            noise = np.random.normal(0, 0.005, len(augmented_audio))
+            augmented_audio = augmented_audio + noise
             operation = "random noise added"
             
         elif augmentation_type == "reverb":
             # Simple reverb effect
             delay = int(sample_rate * 0.1)  # 100ms delay
             decay = 0.3
-            impulse = np.zeros(delay)
-            impulse[0] = 1
-            impulse[delay-1] = decay
-            augmented_audio = signal.convolve(audio, impulse, mode='same')
+            reverb = np.zeros_like(augmented_audio)
+            reverb[delay:] = augmented_audio[:-delay] * decay
+            augmented_audio = augmented_audio + reverb
             operation = "reverb added"
             
         else:
             raise ValueError(f"Unsupported augmentation type: {augmentation_type}")
         
-        # Convert back to int16 and save
-        augmented_audio = np.clip(augmented_audio, -1, 1)
-        augmented_audio = (augmented_audio * 32767).astype(np.int16)
-        output_path = os.path.join("static/uploads", f"augmented_audio_{int(time.time())}.wav")
-        wavfile.write(output_path, sample_rate, augmented_audio)
+        # Normalize to prevent clipping
+        augmented_audio = augmented_audio / np.max(np.abs(augmented_audio))
         
-        # Clean up temp file
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
+        # Convert augmented audio back to bytes
+        output_bytes = io.BytesIO()
+        wavfile.write(output_bytes, sample_rate, augmented_audio.astype(np.float32))
         
         return {
-            "augmented_audio_url": f"/static/uploads/{os.path.basename(output_path)}",
+            "augmented_audio": output_bytes.getvalue(),
             "operation": operation
         }
         
     except Exception as e:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/", response_class=HTMLResponse)
@@ -470,17 +453,36 @@ async def preprocess_file(
             # Image preprocessing
             image = Image.open(io.BytesIO(content))
             result = process_image(image, preprocessing_type)
-            output_path = f"static/uploads/processed_{file.filename}"
+            
+            # Generate unique filename to avoid overwrites
+            timestamp = int(time.time() * 1000)
+            filename = f"processed_{timestamp}_{file.filename}"
+            output_path = os.path.join("static", "uploads", filename)
+            
+            # Save the processed image
             result["processed_image"].save(output_path)
             return {
-                "processed_image_url": f"/static/uploads/processed_{file.filename}",
+                "processed_image_url": f"/static/uploads/{filename}",
                 "operation": result["operation"]
             }
             
         elif file.content_type.startswith('audio/'):
             # Audio preprocessing
             result = process_audio(content, preprocessing_type)
-            return JSONResponse(result)
+            
+            # Generate unique filename for audio
+            timestamp = int(time.time() * 1000)
+            filename = f"processed_{timestamp}_{file.filename}"
+            output_path = os.path.join("static", "uploads", filename)
+            
+            # Save the processed audio
+            with open(output_path, "wb") as f:
+                f.write(result["processed_audio"])
+            
+            return {
+                "processed_audio_url": f"/static/uploads/{filename}",
+                "operation": result["operation"]
+            }
             
         else:
             raise HTTPException(
@@ -504,30 +506,50 @@ async def augment_file(
         if file.content_type.startswith('text/'):
             text = content.decode('utf-8')
             result = augment_text(text, augmentation_type)
+            result["augmentation_operation"] = result.pop("operation", "unknown operation")
             return JSONResponse(result)
             
         elif file.content_type.startswith('image/'):
             # Image augmentation
             image = Image.open(io.BytesIO(content))
             result = augment_image(image, augmentation_type)
-            output_path = f"static/uploads/augmented_{file.filename}"
+            
+            # Generate unique filename
+            timestamp = int(time.time() * 1000)
+            filename = f"augmented_{timestamp}_{file.filename}"
+            output_path = os.path.join("static", "uploads", filename)
+            
+            # Save the augmented image
             result["augmented_image"].save(output_path)
             return {
-                "augmented_image_url": f"/static/uploads/augmented_{file.filename}",
+                "augmented_image_url": f"/static/uploads/{filename}",
                 "operation": result["operation"]
             }
             
         elif file.content_type.startswith('audio/'):
             # Audio augmentation
             result = augment_audio(content, augmentation_type)
-            return JSONResponse(result)
+            
+            # Generate unique filename
+            timestamp = int(time.time() * 1000)
+            filename = f"augmented_{timestamp}_{file.filename}"
+            output_path = os.path.join("static", "uploads", filename)
+            
+            # Save the augmented audio
+            with open(output_path, "wb") as f:
+                f.write(result["augmented_audio"])
+            
+            return {
+                "augmented_audio_url": f"/static/uploads/{filename}",
+                "operation": result["operation"]
+            }
             
         else:
             raise HTTPException(
                 status_code=400, 
                 detail="Unsupported file type"
             )
-        
+            
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -535,3 +557,8 @@ async def augment_file(
 
 # Ensure uploads directory exists
 os.makedirs("static/uploads", exist_ok=True)
+
+# Create uploads directory with proper permissions
+UPLOAD_DIR = os.path.join("static", "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.chmod(UPLOAD_DIR, 0o755)  # Read/write for owner, read for others
