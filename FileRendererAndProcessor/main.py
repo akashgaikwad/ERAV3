@@ -470,20 +470,22 @@ async def preprocess_file(
             # Image preprocessing
             image = Image.open(io.BytesIO(content))
             result = process_image(image, preprocessing_type)
-            
-            # Save processed image and return path
             output_path = f"static/uploads/processed_{file.filename}"
             result["processed_image"].save(output_path)
-            
             return {
                 "processed_image_url": f"/static/uploads/processed_{file.filename}",
                 "operation": result["operation"]
             }
             
+        elif file.content_type.startswith('audio/'):
+            # Audio preprocessing
+            result = process_audio(content, preprocessing_type)
+            return JSONResponse(result)
+            
         else:
             raise HTTPException(
                 status_code=400, 
-                detail="Currently only text and image preprocessing is supported"
+                detail="Unsupported file type"
             )
         
     except ValueError as e:
@@ -508,20 +510,22 @@ async def augment_file(
             # Image augmentation
             image = Image.open(io.BytesIO(content))
             result = augment_image(image, augmentation_type)
-            
-            # Save augmented image and return path
             output_path = f"static/uploads/augmented_{file.filename}"
             result["augmented_image"].save(output_path)
-            
             return {
                 "augmented_image_url": f"/static/uploads/augmented_{file.filename}",
                 "operation": result["operation"]
             }
             
+        elif file.content_type.startswith('audio/'):
+            # Audio augmentation
+            result = augment_audio(content, augmentation_type)
+            return JSONResponse(result)
+            
         else:
             raise HTTPException(
                 status_code=400, 
-                detail="Currently only text and image augmentation is supported"
+                detail="Unsupported file type"
             )
         
     except ValueError as e:

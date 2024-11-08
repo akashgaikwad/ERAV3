@@ -267,61 +267,59 @@ async function augment() {
 }
 
 async function handleAction() {
+    const fileInput = document.getElementById('fileInput');
     const preprocessingType = document.getElementById('preprocessing').value;
     const augmentationType = document.getElementById('augmentation').value;
     const output = document.getElementById('output');
-    const fileInput = document.getElementById('fileInput');
     
+    if (!fileInput.files.length) {
+        output.textContent = 'Please upload a file first';
+        return;
+    }
+
     try {
         let result = null;
         const isImage = fileInput.files[0].type.startsWith('image/');
         const isAudio = fileInput.files[0].type.startsWith('audio/');
         
-        // First do preprocessing if selected
+        // Handle preprocessing if selected
         if (preprocessingType) {
             const formData = new FormData();
             formData.append('file', fileInput.files[0]);
-            formData.append('preprocessing_type', preprocessingType.toLowerCase());
+            formData.append('preprocessing_type', preprocessingType);
             
             const response = await fetch('/api/preprocess', {
                 method: 'POST',
                 body: formData
             });
             
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
             result = await response.json();
         }
         
-        // Then do augmentation if selected
+        // Handle augmentation if selected
         if (augmentationType) {
             const formData = new FormData();
-            
-            if (result && result.processed_text) {
-                // For text: use the preprocessed text
-                const preprocessedBlob = new Blob([result.processed_text], { type: 'text/plain' });
-                formData.append('file', preprocessedBlob, 'preprocessed.txt');
-            } else if (result && result.processed_image_url) {
-                // For images: fetch the processed image and use it
-                const processedImage = await fetch(result.processed_image_url);
-                const processedBlob = await processedImage.blob();
-                formData.append('file', processedBlob, 'processed_image.jpg');
-            } else {
-                formData.append('file', fileInput.files[0]);
-            }
-            
-            formData.append('augmentation_type', augmentationType.toLowerCase());
+            formData.append('file', fileInput.files[0]);
+            formData.append('augmentation_type', augmentationType);
             
             const response = await fetch('/api/augment', {
                 method: 'POST',
                 body: formData
             });
             
-            const augmentResult = await response.json();
-            result = { ...result, ...augmentResult };
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            result = await response.json();
         }
         
         // Display the results
         if (result) {
             if (isImage) {
+                // Image display code (unchanged)
                 output.innerHTML = `
                     <h3>Processing Results:</h3>
                     <div class="image-results">
@@ -380,32 +378,29 @@ async function handleAction() {
                 `;
             }
             else {
+                // Text display (unchanged)
                 output.innerHTML = `
                     <h3>Processing Results:</h3>
-                    <div class="text-results">
+                    ${result.original_text ? `
                         <div class="text-block">
                             <p><strong>Original Text:</strong></p>
-                            <pre>${result.original_text || ''}</pre>
+                            <pre>${result.original_text}</pre>
                         </div>
-                        
-                        ${result.processed_text ? `
-                            <div class="text-block">
-                                <p><strong>Preprocessed Text:</strong></p>
-                                <pre>${result.processed_text}</pre>
-                                ${result.removed_words ? `<p><strong>Words Removed:</strong> ${result.removed_words}</p>` : ''}
-                                ${result.operation ? `<p><strong>Operation:</strong> ${result.operation}</p>` : ''}
-                            </div>
-                        ` : ''}
-                        
-                        ${result.augmented_text ? `
-                            <div class="text-block">
-                                <p><strong>Augmented Text:</strong></p>
-                                <pre>${result.augmented_text}</pre>
-                                ${result.words_replaced ? `<p><strong>Words Replaced:</strong> ${result.words_replaced}</p>` : ''}
-                                ${result.words_inserted ? `<p><strong>Words Inserted:</strong> ${result.words_inserted}</p>` : ''}
-                            </div>
-                        ` : ''}
-                    </div>
+                    ` : ''}
+                    ${result.processed_text ? `
+                        <div class="text-block">
+                            <p><strong>Preprocessed Text:</strong></p>
+                            <pre>${result.processed_text}</pre>
+                        </div>
+                    ` : ''}
+                    ${result.augmented_text ? `
+                        <div class="text-block">
+                            <p><strong>Augmented Text:</strong></p>
+                            <pre>${result.augmented_text}</pre>
+                            ${result.words_replaced ? `<p><strong>Words Replaced:</strong> ${result.words_replaced}</p>` : ''}
+                            ${result.operation ? `<p><strong>Operation:</strong> ${result.operation}</p>` : ''}
+                        </div>
+                    ` : ''}
                 `;
             }
         }
