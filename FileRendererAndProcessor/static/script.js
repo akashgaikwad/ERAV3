@@ -19,7 +19,20 @@ function updateDropdownOptions(fileType) {
     preprocessingDropdown.innerHTML = '<option value="">Select Preprocessing</option>';
     augmentationDropdown.innerHTML = '<option value="">Select Augmentation</option>';
     
-    if (fileType.startsWith('image/')) {
+    if (fileType.startsWith('text/')) {
+        // Text file options
+        const preprocessingOptions = [
+            { value: 'remove_stopwords', text: 'Remove Stopwords' },
+            { value: 'lowercase', text: 'Lowercase' },
+            { value: 'tokenize', text: 'Tokenize' },
+            { value: 'remove_punctuation', text: 'Remove Punctuation' }
+        ];
+        const augmentationOptions = ['Synonym Replace', 'Back Translation', 'Random Insert'];
+        
+        addOptionsToDropdown(preprocessingDropdown, preprocessingOptions);
+        addOptionsToDropdown(augmentationDropdown, augmentationOptions);
+    } 
+    else if (fileType.startsWith('image/')) {
         // Image file options
         const preprocessingOptions = ['Resize', 'Normalize', 'Grayscale', 'Crop'];
         const augmentationOptions = ['Rotate', 'Flip', 'Blur', 'Brightness'];
@@ -34,22 +47,19 @@ function updateDropdownOptions(fileType) {
         
         addOptionsToDropdown(preprocessingDropdown, preprocessingOptions);
         addOptionsToDropdown(augmentationDropdown, augmentationOptions);
-    } 
-    else if (fileType.startsWith('text/')) {
-        // Text file options
-        const preprocessingOptions = ['Tokenize', 'Remove Stopwords', 'Lowercase'];
-        const augmentationOptions = ['Synonym Replace', 'Back Translation', 'Random Insert'];
-        
-        addOptionsToDropdown(preprocessingDropdown, preprocessingOptions);
-        addOptionsToDropdown(augmentationDropdown, augmentationOptions);
     }
 }
 
 function addOptionsToDropdown(dropdown, options) {
     options.forEach(option => {
         const optionElement = document.createElement('option');
-        optionElement.value = option.toLowerCase().replace(' ', '_');
-        optionElement.textContent = option;
+        if (typeof option === 'object') {
+            optionElement.value = option.value;
+            optionElement.textContent = option.text;
+        } else {
+            optionElement.value = option.toLowerCase().replace(' ', '_');
+            optionElement.textContent = option;
+        }
         dropdown.appendChild(optionElement);
     });
 }
@@ -72,13 +82,48 @@ function enablePreprocessButton() {
 }
 
 async function preprocess() {
+    const fileInput = document.getElementById('fileInput');
+    const preprocessingType = document.getElementById('preprocessing').value;
     const output = document.getElementById('output');
+    
+    if (!fileInput.files.length) {
+        output.textContent = 'Please upload a file first';
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    formData.append('preprocessing_type', preprocessingType);
+
     try {
         const response = await fetch('/api/preprocess', {
-            method: 'POST'
+            method: 'POST',
+            body: formData
         });
+
         const result = await response.json();
-        output.textContent = JSON.stringify(result, null, 2);
+        
+        // Display results based on preprocessing type
+        if (result.tokens) {
+            output.innerHTML = `
+                <h3>Tokenization Results:</h3>
+                <p><strong>Original Text:</strong></p>
+                <pre>${result.original_text}</pre>
+                <p><strong>Tokens:</strong></p>
+                <pre>${JSON.stringify(result.tokens, null, 2)}</pre>
+                <p><strong>Token Count:</strong> ${result.token_count}</p>
+            `;
+        } else {
+            output.innerHTML = `
+                <h3>Preprocessing Results:</h3>
+                <p><strong>Original Text:</strong></p>
+                <pre>${result.original_text}</pre>
+                <p><strong>Processed Text:</strong></p>
+                <pre>${result.processed_text}</pre>
+                ${result.removed_words ? `<p><strong>Stopwords Removed:</strong> ${result.removed_words}</p>` : ''}
+                ${result.operation ? `<p><strong>Operation:</strong> ${result.operation}</p>` : ''}
+            `;
+        }
     } catch (error) {
         output.textContent = 'Error preprocessing file: ' + error.message;
     }
