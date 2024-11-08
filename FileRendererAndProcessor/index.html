@@ -15,6 +15,27 @@
                 <input type="file" id="fileInput" onchange="handleFileSelect()" />
                 <p class="file-info">Supported files: Images, Text, Audio, 3D Models</p>
             </div>
+            <div class="dropdown-section">
+                <div class="dropdown-container">
+                    <label for="preprocessing">Preprocessing:</label>
+                    <select id="preprocessing" class="dropdown">
+                        <option value="">Select Preprocessing</option>
+                        <option value="resize">Resize</option>
+                        <option value="normalize">Normalize</option>
+                        <option value="grayscale">Grayscale</option>
+                    </select>
+                </div>
+                
+                <div class="dropdown-container">
+                    <label for="augmentation">Augmentation:</label>
+                    <select id="augmentation" class="dropdown">
+                        <option value="">Select Augmentation</option>
+                        <option value="rotate">Rotate</option>
+                        <option value="flip">Flip</option>
+                        <option value="blur">Blur</option>
+                    </select>
+                </div>
+            </div>
             <button id="preprocessBtn" class="preprocess-btn disabled" onclick="preprocess()" disabled>
                 Apply
             </button>
