@@ -8,6 +8,8 @@ import random
 from nltk.corpus import wordnet
 import nltk
 import ssl
+from deep_translator import GoogleTranslator
+import time
 
 # Add this SSL context fix for NLTK downloads
 try:
@@ -47,6 +49,32 @@ STOP_WORDS = {
     'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own',
     'same', 'so', 'than', 'too', 'very', 'can', 'just', 'should', 'now'
 }
+
+def back_translate(text: str, intermediate_lang='es') -> str:
+    """
+    Translate text to an intermediate language and back to English
+    Using delay to avoid Google Translate API rate limits
+    """
+    try:
+        # Translate to intermediate language
+        time.sleep(1)  # Add delay to avoid rate limiting
+        translator = GoogleTranslator(source='en', target=intermediate_lang)
+        intermediate = translator.translate(text)
+        
+        # Translate back to English
+        time.sleep(1)  # Add delay to avoid rate limiting
+        translator = GoogleTranslator(source=intermediate_lang, target='en')
+        back_translated = translator.translate(intermediate)
+        
+        return back_translated
+    except Exception as e:
+        print(f"Translation error: {e}")
+        return text  # Return original text if translation fails
+
+def get_random_words(text: str, n: int) -> list:
+    """Get n random words from the text that aren't stopwords"""
+    words = [word for word in text.split() if word.lower() not in STOP_WORDS]
+    return random.sample(words, min(n, len(words)))
 
 def tokenize(text):
     """Simple tokenizer function"""
@@ -133,6 +161,36 @@ def augment_text(text: str, augmentation_type: str) -> dict:
             "augmented_text": augmented_text,
             "words_replaced": len(indices_to_replace) if replaceable_indices else 0
         }
+    
+    elif augmentation_type == "back_translation":
+        # Translate to Spanish and back to English
+        augmented_text = back_translate(text)
+        return {
+            "original_text": text,
+            "augmented_text": augmented_text,
+            "operation": "back translation (via Spanish)"
+        }
+    
+    elif augmentation_type == "random_insert":
+        words = text.split()
+        num_words = len(words)
+        num_to_insert = max(1, int(num_words * 0.15))  # Insert 15% new words
+        
+        # Get random words from the original text
+        words_to_insert = get_random_words(text, num_to_insert)
+        
+        # Insert words at random positions
+        for word in words_to_insert:
+            insert_position = random.randint(0, len(words))
+            words.insert(insert_position, word)
+        
+        augmented_text = ' '.join(words)
+        return {
+            "original_text": text,
+            "augmented_text": augmented_text,
+            "words_inserted": len(words_to_insert)
+        }
+    
     else:
         raise ValueError(f"Unsupported augmentation type: {augmentation_type}")
 

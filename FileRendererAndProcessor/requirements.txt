@@ -8,3 +8,4 @@ six
 torch
 torchtext
 nltk
+deep-translator
