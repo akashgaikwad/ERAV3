@@ -4,6 +4,25 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import string
+import random
+from nltk.corpus import wordnet
+import nltk
+import ssl
+
+# Add this SSL context fix for NLTK downloads
+try:
+    _create_unverified_https_context = ssl._create_unverified_context
+except AttributeError:
+    pass
+else:
+    ssl._create_default_https_context = _create_unverified_https_context
+
+# Download required NLTK data with error handling
+try:
+    nltk.data.find('corpora/wordnet')
+except LookupError:
+    nltk.download('wordnet')
+    nltk.download('omw-1.4')  # Also download Open Multilingual WordNet
 
 app = FastAPI()
 
@@ -75,6 +94,48 @@ def process_text(text: str, preprocessing_type: str) -> dict:
     else:
         raise ValueError(f"Unsupported preprocessing type: {preprocessing_type}")
 
+def get_synonyms(word):
+    """Get synonyms for a word using WordNet"""
+    synonyms = set()
+    for syn in wordnet.synsets(word):
+        for lemma in syn.lemmas():
+            if lemma.name().lower() != word.lower():  # Don't include the word itself
+                synonyms.add(lemma.name())
+    return list(synonyms)
+
+def augment_text(text: str, augmentation_type: str) -> dict:
+    """Augment text based on selected augmentation type"""
+    if augmentation_type == "synonym_replace":
+        words = text.split()
+        num_words = len(words)
+        # Replace 30% of replaceable words with synonyms
+        num_to_replace = max(1, int(num_words * 0.3))
+        
+        # Keep track of which words have synonyms
+        replaceable_indices = []
+        for i, word in enumerate(words):
+            if len(get_synonyms(word)) > 0:
+                replaceable_indices.append(i)
+        
+        # Randomly select words to replace
+        if replaceable_indices:
+            indices_to_replace = random.sample(replaceable_indices, 
+                                            min(num_to_replace, len(replaceable_indices)))
+            
+            for idx in indices_to_replace:
+                synonyms = get_synonyms(words[idx])
+                if synonyms:
+                    words[idx] = random.choice(synonyms)
+        
+        augmented_text = ' '.join(words)
+        return {
+            "original_text": text,
+            "augmented_text": augmented_text,
+            "words_replaced": len(indices_to_replace) if replaceable_indices else 0
+        }
+    else:
+        raise ValueError(f"Unsupported augmentation type: {augmentation_type}")
+
 @app.get("/", response_class=HTMLResponse)
 async def get_homepage():
     with open("index.html") as file:
@@ -126,6 +187,30 @@ async def preprocess_file(
             raise HTTPException(
                 status_code=400, 
                 detail="Currently only text preprocessing is supported"
+            )
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/augment")
+async def augment_file(
+    file: UploadFile = File(...),
+    augmentation_type: str = Form(...)
+):
+    try:
+        content = await file.read()
+        
+        if file.content_type.startswith('text/'):
+            text = content.decode('utf-8')
+            result = augment_text(text, augmentation_type)
+            return JSONResponse(result)
+            
+        else:
+            raise HTTPException(
+                status_code=400, 
+                detail="Currently only text augmentation is supported"
             )
         
     except ValueError as e:

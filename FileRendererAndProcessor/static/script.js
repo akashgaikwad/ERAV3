@@ -27,7 +27,11 @@ function updateDropdownOptions(fileType) {
             { value: 'tokenize', text: 'Tokenize' },
             { value: 'remove_punctuation', text: 'Remove Punctuation' }
         ];
-        const augmentationOptions = ['Synonym Replace', 'Back Translation', 'Random Insert'];
+        const augmentationOptions = [
+            { value: 'synonym_replace', text: 'Synonym Replace' },
+            { value: 'back_translation', text: 'Back Translation' },
+            { value: 'random_insert', text: 'Random Insert' }
+        ];
         
         addOptionsToDropdown(preprocessingDropdown, preprocessingOptions);
         addOptionsToDropdown(augmentationDropdown, augmentationOptions);
@@ -159,5 +163,73 @@ async function uploadFile() {
         } catch (error) {
             output.textContent = 'Error uploading file: ' + error.message;
         }
+    }
+}
+
+async function augment() {
+    const fileInput = document.getElementById('fileInput');
+    const augmentationType = document.getElementById('augmentation').value;
+    const output = document.getElementById('output');
+    
+    if (!fileInput.files.length) {
+        output.textContent = 'Please upload a file first';
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    formData.append('augmentation_type', augmentationType);
+
+    try {
+        const response = await fetch('/api/augment', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+        
+        output.innerHTML = `
+            <h3>Augmentation Results:</h3>
+            <p><strong>Original Text:</strong></p>
+            <pre>${result.original_text}</pre>
+            <p><strong>Augmented Text:</strong></p>
+            <pre>${result.augmented_text}</pre>
+            <p><strong>Words Replaced:</strong> ${result.words_replaced}</p>
+        `;
+    } catch (error) {
+        output.textContent = 'Error augmenting file: ' + error.message;
+    }
+}
+
+async function handleAction() {
+    const preprocessingType = document.getElementById('preprocessing').value;
+    const augmentationType = document.getElementById('augmentation').value;
+    
+    if (preprocessingType && !augmentationType) {
+        // Only preprocessing is selected
+        await preprocess();
+    } else if (augmentationType && !preprocessingType) {
+        // Only augmentation is selected
+        await augment();
+    } else if (preprocessingType && augmentationType) {
+        // Both are selected - you might want to show an error or handle this case
+        const output = document.getElementById('output');
+        output.textContent = 'Please select either preprocessing OR augmentation, not both';
+    } else {
+        // Neither is selected
+        const output = document.getElementById('output');
+        output.textContent = 'Please select a preprocessing or augmentation option';
+    }
+}
+
+// Add this new function
+function handleDropdownChange(dropdownId) {
+    const preprocessing = document.getElementById('preprocessing');
+    const augmentation = document.getElementById('augmentation');
+    
+    if (dropdownId === 'preprocessing' && preprocessing.value) {
+        augmentation.value = '';  // Clear augmentation if preprocessing is selected
+    } else if (dropdownId === 'augmentation' && augmentation.value) {
+        preprocessing.value = '';  // Clear preprocessing if augmentation is selected
     }
 }

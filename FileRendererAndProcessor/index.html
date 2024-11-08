@@ -18,7 +18,7 @@
             <div class="dropdown-section">
                 <div class="dropdown-container">
                     <label for="preprocessing">Preprocessing:</label>
-                    <select id="preprocessing" class="dropdown">
+                    <select id="preprocessing" class="dropdown" onchange="handleDropdownChange('preprocessing')">
                         <option value="">Select Preprocessing</option>
                         <option value="resize">Resize</option>
                         <option value="normalize">Normalize</option>
@@ -28,7 +28,7 @@
                 
                 <div class="dropdown-container">
                     <label for="augmentation">Augmentation:</label>
-                    <select id="augmentation" class="dropdown">
+                    <select id="augmentation" class="dropdown" onchange="handleDropdownChange('augmentation')">
                         <option value="">Select Augmentation</option>
                         <option value="rotate">Rotate</option>
                         <option value="flip">Flip</option>
@@ -36,7 +36,7 @@
                     </select>
                 </div>
             </div>
-            <button id="preprocessBtn" class="preprocess-btn disabled" onclick="preprocess()" disabled>
+            <button id="preprocessBtn" class="preprocess-btn disabled" onclick="handleAction()" disabled>
                 Apply
             </button>
         </div>
