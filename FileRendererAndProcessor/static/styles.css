@@ -319,3 +319,36 @@ h1 {
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
+
+.audio-container {
+    margin: 20px 0;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.audio-container audio {
+    width: 100%;
+    margin: 10px 0;
+}
+
+.audio-info {
+    margin-top: 10px;
+    font-size: 0.9em;
+    color: #666;
+}
+
+.audio-results {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.audio-container p {
+    margin: 5px 0;
+}
+
+.audio-container strong {
+    color: #2e7d32;
+}

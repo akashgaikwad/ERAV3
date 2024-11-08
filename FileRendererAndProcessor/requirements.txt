@@ -10,3 +10,4 @@ torchtext
 nltk
 deep-translator
 torchvision
+scipy

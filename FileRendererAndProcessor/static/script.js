@@ -38,16 +38,36 @@ function updateDropdownOptions(fileType) {
     } 
     else if (fileType.startsWith('image/')) {
         // Image file options
-        const preprocessingOptions = ['Resize', 'Normalize', 'Grayscale', 'Crop'];
-        const augmentationOptions = ['Rotate', 'Flip', 'Blur', 'Brightness'];
+        const preprocessingOptions = [
+            { value: 'resize', text: 'Resize' },
+            { value: 'normalize', text: 'Normalize' },
+            { value: 'grayscale', text: 'Grayscale' },
+            { value: 'crop', text: 'Crop' }
+        ];
+        const augmentationOptions = [
+            { value: 'rotate', text: 'Rotate' },
+            { value: 'flip', text: 'Flip' },
+            { value: 'blur', text: 'Blur' },
+            { value: 'brightness', text: 'Brightness' }
+        ];
         
         addOptionsToDropdown(preprocessingDropdown, preprocessingOptions);
         addOptionsToDropdown(augmentationDropdown, augmentationOptions);
     } 
     else if (fileType.startsWith('audio/')) {
         // Audio file options
-        const preprocessingOptions = ['Normalize Audio', 'Resample', 'Trim Silence'];
-        const augmentationOptions = ['Time Stretch', 'Pitch Shift', 'Add Noise'];
+        const preprocessingOptions = [
+            { value: 'normalize_audio', text: 'Normalize Audio' },
+            { value: 'trim_silence', text: 'Trim Silence' },
+            { value: 'resample', text: 'Resample' },
+            { value: 'noise_reduction', text: 'Noise Reduction' }
+        ];
+        const augmentationOptions = [
+            { value: 'time_stretch', text: 'Time Stretch' },
+            { value: 'pitch_shift', text: 'Pitch Shift' },
+            { value: 'add_noise', text: 'Add Noise' },
+            { value: 'reverb', text: 'Add Reverb' }
+        ];
         
         addOptionsToDropdown(preprocessingDropdown, preprocessingOptions);
         addOptionsToDropdown(augmentationDropdown, augmentationOptions);
@@ -74,11 +94,10 @@ async function handleFileSelect() {
     
     if (fileInput.files.length > 0) {
         const file = fileInput.files[0];
-        updateDropdownOptions(file.type);  // Update dropdowns based on file type
+        updateDropdownOptions(file.type);
         showFileName();
         enablePreprocessButton();
         
-        // Display file content based on type
         try {
             if (file.type.startsWith('text/')) {
                 // For text files
@@ -98,6 +117,24 @@ async function handleFileSelect() {
                     <div class="image-container">
                         <p><strong>Original Image:</strong></p>
                         <img src="${imageUrl}" alt="Uploaded image" style="max-width: 300px;">
+                    </div>
+                `;
+            } else if (file.type.startsWith('audio/')) {
+                // Audio file handling
+                const audioUrl = URL.createObjectURL(file);
+                output.innerHTML = `
+                    <h3>Uploaded Content:</h3>
+                    <div class="audio-container">
+                        <p><strong>Original Audio:</strong></p>
+                        <audio controls>
+                            <source src="${audioUrl}" type="${file.type}">
+                            Your browser does not support the audio element.
+                        </audio>
+                        <div class="audio-info">
+                            <p><strong>File Name:</strong> ${file.name}</p>
+                            <p><strong>File Size:</strong> ${(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                            <p><strong>File Type:</strong> ${file.type}</p>
+                        </div>
                     </div>
                 `;
             }
@@ -238,6 +275,7 @@ async function handleAction() {
     try {
         let result = null;
         const isImage = fileInput.files[0].type.startsWith('image/');
+        const isAudio = fileInput.files[0].type.startsWith('audio/');
         
         // First do preprocessing if selected
         if (preprocessingType) {
@@ -307,7 +345,41 @@ async function handleAction() {
                         ` : ''}
                     </div>
                 `;
-            } else {
+            } 
+            else if (isAudio) {
+                output.innerHTML = `
+                    <h3>Processing Results:</h3>
+                    <div class="audio-results">
+                        <div class="audio-container">
+                            <p><strong>Original Audio:</strong></p>
+                            <audio controls>
+                                <source src="${URL.createObjectURL(fileInput.files[0])}" type="${fileInput.files[0].type}">
+                            </audio>
+                        </div>
+                        
+                        ${result.processed_audio_url ? `
+                            <div class="audio-container">
+                                <p><strong>Preprocessed Audio:</strong></p>
+                                <audio controls>
+                                    <source src="${result.processed_audio_url}" type="audio/wav">
+                                </audio>
+                                <p><strong>Operation:</strong> ${result.operation}</p>
+                            </div>
+                        ` : ''}
+                        
+                        ${result.augmented_audio_url ? `
+                            <div class="audio-container">
+                                <p><strong>Augmented Audio:</strong></p>
+                                <audio controls>
+                                    <source src="${result.augmented_audio_url}" type="audio/wav">
+                                </audio>
+                                <p><strong>Operation:</strong> ${result.operation}</p>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+            else {
                 output.innerHTML = `
                     <h3>Processing Results:</h3>
                     <div class="text-results">

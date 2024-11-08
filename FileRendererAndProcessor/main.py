@@ -14,6 +14,8 @@ from PIL import Image
 import torchvision.transforms as transforms
 import io
 import numpy as np
+from scipy.io import wavfile
+import scipy.signal as signal
 
 # Add this SSL context fix for NLTK downloads
 try:
@@ -288,6 +290,133 @@ def augment_image(image: Image.Image, augmentation_type: str) -> dict:
             raise ValueError(f"Unsupported augmentation type: {augmentation_type}")
             
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Simple audio processing functions using only scipy
+def process_audio(audio_data: bytes, preprocessing_type: str) -> dict:
+    """Process audio based on selected preprocessing type"""
+    try:
+        # Save the uploaded audio temporarily
+        temp_path = os.path.join("static/uploads", "temp_audio.wav")
+        with open(temp_path, "wb") as f:
+            f.write(audio_data)
+        
+        # Read the audio file
+        sample_rate, audio = wavfile.read(temp_path)
+        
+        # Convert to float32 for processing
+        audio = audio.astype(np.float32) / 32767.0
+        
+        if preprocessing_type == "normalize_audio":
+            # Normalize audio
+            processed_audio = audio / np.max(np.abs(audio))
+            operation = "audio normalized"
+            
+        elif preprocessing_type == "trim_silence":
+            # Simple silence trimming
+            threshold = 0.01
+            mask = np.abs(audio) > threshold
+            processed_audio = audio[mask]
+            operation = "silence trimmed"
+            
+        elif preprocessing_type == "resample":
+            # Resample to half the original sample rate
+            target_sr = sample_rate // 2
+            processed_audio = signal.resample(audio, int(len(audio) * target_sr / sample_rate))
+            sample_rate = target_sr
+            operation = f"resampled to {target_sr}Hz"
+            
+        elif preprocessing_type == "noise_reduction":
+            # Simple noise reduction using a low-pass filter
+            b, a = signal.butter(3, 0.1)
+            processed_audio = signal.filtfilt(b, a, audio)
+            operation = "noise reduced"
+            
+        else:
+            raise ValueError(f"Unsupported preprocessing type: {preprocessing_type}")
+        
+        # Convert back to int16 and save
+        processed_audio = (processed_audio * 32767).astype(np.int16)
+        output_path = os.path.join("static/uploads", f"processed_audio_{int(time.time())}.wav")
+        wavfile.write(output_path, sample_rate, processed_audio)
+        
+        # Clean up temp file
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        
+        return {
+            "processed_audio_url": f"/static/uploads/{os.path.basename(output_path)}",
+            "operation": operation
+        }
+        
+    except Exception as e:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        raise HTTPException(status_code=500, detail=str(e))
+
+def augment_audio(audio_data: bytes, augmentation_type: str) -> dict:
+    """Augment audio based on selected augmentation type"""
+    try:
+        # Save the uploaded audio temporarily
+        temp_path = os.path.join("static/uploads", "temp_audio.wav")
+        with open(temp_path, "wb") as f:
+            f.write(audio_data)
+        
+        # Read the audio file
+        sample_rate, audio = wavfile.read(temp_path)
+        audio = audio.astype(np.float32) / 32767.0
+        
+        if augmentation_type == "time_stretch":
+            # Simple time stretching (slower/faster)
+            factor = np.random.uniform(0.8, 1.2)
+            augmented_audio = signal.resample(audio, int(len(audio) * factor))
+            operation = f"time stretched by factor {factor:.2f}"
+            
+        elif augmentation_type == "pitch_shift":
+            # Simple pitch shifting using resampling
+            factor = np.random.uniform(0.8, 1.2)
+            augmented_audio = signal.resample(audio, int(len(audio) * factor))
+            augmented_audio = signal.resample(augmented_audio, len(audio))
+            operation = "pitch shifted"
+            
+        elif augmentation_type == "add_noise":
+            # Add random noise
+            noise_level = 0.005
+            noise = np.random.normal(0, noise_level, len(audio))
+            augmented_audio = audio + noise
+            operation = "random noise added"
+            
+        elif augmentation_type == "reverb":
+            # Simple reverb effect
+            delay = int(sample_rate * 0.1)  # 100ms delay
+            decay = 0.3
+            impulse = np.zeros(delay)
+            impulse[0] = 1
+            impulse[delay-1] = decay
+            augmented_audio = signal.convolve(audio, impulse, mode='same')
+            operation = "reverb added"
+            
+        else:
+            raise ValueError(f"Unsupported augmentation type: {augmentation_type}")
+        
+        # Convert back to int16 and save
+        augmented_audio = np.clip(augmented_audio, -1, 1)
+        augmented_audio = (augmented_audio * 32767).astype(np.int16)
+        output_path = os.path.join("static/uploads", f"augmented_audio_{int(time.time())}.wav")
+        wavfile.write(output_path, sample_rate, augmented_audio)
+        
+        # Clean up temp file
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        
+        return {
+            "augmented_audio_url": f"/static/uploads/{os.path.basename(output_path)}",
+            "operation": operation
+        }
+        
+    except Exception as e:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/", response_class=HTMLResponse)
