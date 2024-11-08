@@ -70,12 +70,40 @@ function addOptionsToDropdown(dropdown, options) {
 
 async function handleFileSelect() {
     const fileInput = document.getElementById('fileInput');
+    const output = document.getElementById('output');
+    
     if (fileInput.files.length > 0) {
         const file = fileInput.files[0];
         updateDropdownOptions(file.type);  // Update dropdowns based on file type
         showFileName();
-        await uploadFile();
         enablePreprocessButton();
+        
+        // Display file content based on type
+        try {
+            if (file.type.startsWith('text/')) {
+                // For text files
+                const text = await file.text();
+                output.innerHTML = `
+                    <h3>Uploaded Content:</h3>
+                    <div class="text-block">
+                        <p><strong>Original Text:</strong></p>
+                        <pre>${text}</pre>
+                    </div>
+                `;
+            } else if (file.type.startsWith('image/')) {
+                // For image files
+                const imageUrl = URL.createObjectURL(file);
+                output.innerHTML = `
+                    <h3>Uploaded Content:</h3>
+                    <div class="image-container">
+                        <p><strong>Original Image:</strong></p>
+                        <img src="${imageUrl}" alt="Uploaded image" style="max-width: 300px;">
+                    </div>
+                `;
+            }
+        } catch (error) {
+            output.textContent = 'Error reading file: ' + error.message;
+        }
     }
 }
 
@@ -204,32 +232,119 @@ async function augment() {
 async function handleAction() {
     const preprocessingType = document.getElementById('preprocessing').value;
     const augmentationType = document.getElementById('augmentation').value;
+    const output = document.getElementById('output');
+    const fileInput = document.getElementById('fileInput');
     
-    if (preprocessingType && !augmentationType) {
-        // Only preprocessing is selected
-        await preprocess();
-    } else if (augmentationType && !preprocessingType) {
-        // Only augmentation is selected
-        await augment();
-    } else if (preprocessingType && augmentationType) {
-        // Both are selected - you might want to show an error or handle this case
-        const output = document.getElementById('output');
-        output.textContent = 'Please select either preprocessing OR augmentation, not both';
-    } else {
-        // Neither is selected
-        const output = document.getElementById('output');
-        output.textContent = 'Please select a preprocessing or augmentation option';
+    try {
+        let result = null;
+        const isImage = fileInput.files[0].type.startsWith('image/');
+        
+        // First do preprocessing if selected
+        if (preprocessingType) {
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('preprocessing_type', preprocessingType.toLowerCase());
+            
+            const response = await fetch('/api/preprocess', {
+                method: 'POST',
+                body: formData
+            });
+            
+            result = await response.json();
+        }
+        
+        // Then do augmentation if selected
+        if (augmentationType) {
+            const formData = new FormData();
+            
+            if (result && result.processed_text) {
+                // For text: use the preprocessed text
+                const preprocessedBlob = new Blob([result.processed_text], { type: 'text/plain' });
+                formData.append('file', preprocessedBlob, 'preprocessed.txt');
+            } else if (result && result.processed_image_url) {
+                // For images: fetch the processed image and use it
+                const processedImage = await fetch(result.processed_image_url);
+                const processedBlob = await processedImage.blob();
+                formData.append('file', processedBlob, 'processed_image.jpg');
+            } else {
+                formData.append('file', fileInput.files[0]);
+            }
+            
+            formData.append('augmentation_type', augmentationType.toLowerCase());
+            
+            const response = await fetch('/api/augment', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const augmentResult = await response.json();
+            result = { ...result, ...augmentResult };
+        }
+        
+        // Display the results
+        if (result) {
+            if (isImage) {
+                output.innerHTML = `
+                    <h3>Processing Results:</h3>
+                    <div class="image-results">
+                        <div class="image-container">
+                            <p><strong>Original Image:</strong></p>
+                            <img src="${URL.createObjectURL(fileInput.files[0])}" alt="Original">
+                        </div>
+                        ${result.processed_image_url ? `
+                            <div class="image-container">
+                                <p><strong>Preprocessed Image:</strong></p>
+                                <img src="${result.processed_image_url}" alt="Preprocessed">
+                                <p><strong>Operation:</strong> ${result.operation}</p>
+                            </div>
+                        ` : ''}
+                        ${result.augmented_image_url ? `
+                            <div class="image-container">
+                                <p><strong>Augmented Image:</strong></p>
+                                <img src="${result.augmented_image_url}" alt="Augmented">
+                                <p><strong>Operation:</strong> ${result.operation}</p>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            } else {
+                output.innerHTML = `
+                    <h3>Processing Results:</h3>
+                    <div class="text-results">
+                        <div class="text-block">
+                            <p><strong>Original Text:</strong></p>
+                            <pre>${result.original_text || ''}</pre>
+                        </div>
+                        
+                        ${result.processed_text ? `
+                            <div class="text-block">
+                                <p><strong>Preprocessed Text:</strong></p>
+                                <pre>${result.processed_text}</pre>
+                                ${result.removed_words ? `<p><strong>Words Removed:</strong> ${result.removed_words}</p>` : ''}
+                                ${result.operation ? `<p><strong>Operation:</strong> ${result.operation}</p>` : ''}
+                            </div>
+                        ` : ''}
+                        
+                        ${result.augmented_text ? `
+                            <div class="text-block">
+                                <p><strong>Augmented Text:</strong></p>
+                                <pre>${result.augmented_text}</pre>
+                                ${result.words_replaced ? `<p><strong>Words Replaced:</strong> ${result.words_replaced}</p>` : ''}
+                                ${result.words_inserted ? `<p><strong>Words Inserted:</strong> ${result.words_inserted}</p>` : ''}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+        }
+        
+    } catch (error) {
+        output.textContent = 'Error processing file: ' + error.message;
     }
 }
 
-// Add this new function
+// Update handleDropdownChange to allow both preprocessing and augmentation
 function handleDropdownChange(dropdownId) {
-    const preprocessing = document.getElementById('preprocessing');
-    const augmentation = document.getElementById('augmentation');
-    
-    if (dropdownId === 'preprocessing' && preprocessing.value) {
-        augmentation.value = '';  // Clear augmentation if preprocessing is selected
-    } else if (dropdownId === 'augmentation' && augmentation.value) {
-        preprocessing.value = '';  // Clear preprocessing if augmentation is selected
-    }
+    // Remove the code that clears the other dropdown
+    // This allows both preprocessing and augmentation to be selected
 }

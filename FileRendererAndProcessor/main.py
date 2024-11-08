@@ -10,6 +10,10 @@ import nltk
 import ssl
 from deep_translator import GoogleTranslator
 import time
+from PIL import Image
+import torchvision.transforms as transforms
+import io
+import numpy as np
 
 # Add this SSL context fix for NLTK downloads
 try:
@@ -194,6 +198,98 @@ def augment_text(text: str, augmentation_type: str) -> dict:
     else:
         raise ValueError(f"Unsupported augmentation type: {augmentation_type}")
 
+# Add these image processing functions
+def process_image(image: Image.Image, preprocessing_type: str) -> dict:
+    """Process image based on selected preprocessing type"""
+    try:
+        if preprocessing_type == "resize":
+            # Resize to 224x224 (standard size)
+            processed_img = transforms.Resize((224, 224))(image)
+            return {
+                "processed_image": processed_img,
+                "operation": "resized to 224x224"
+            }
+        
+        elif preprocessing_type == "normalize":
+            # Convert to tensor and normalize
+            transform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                                  std=[0.229, 0.224, 0.225])
+            ])
+            processed_img = transform(image)
+            # Convert back to PIL for display
+            processed_img = transforms.ToPILImage()(processed_img)
+            return {
+                "processed_image": processed_img,
+                "operation": "normalized"
+            }
+        
+        elif preprocessing_type == "grayscale":
+            processed_img = transforms.Grayscale(num_output_channels=1)(image)
+            return {
+                "processed_image": processed_img,
+                "operation": "converted to grayscale"
+            }
+        
+        elif preprocessing_type == "crop":
+            # Center crop to 224x224
+            processed_img = transforms.CenterCrop(224)(image)
+            return {
+                "processed_image": processed_img,
+                "operation": "center cropped to 224x224"
+            }
+        
+        else:
+            raise ValueError(f"Unsupported preprocessing type: {preprocessing_type}")
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+def augment_image(image: Image.Image, augmentation_type: str) -> dict:
+    """Augment image based on selected augmentation type"""
+    try:
+        if augmentation_type == "rotate":
+            # Random rotation between -30 and 30 degrees
+            angle = random.uniform(-30, 30)
+            augmented_img = transforms.functional.rotate(image, angle)
+            return {
+                "augmented_image": augmented_img,
+                "operation": f"rotated by {angle:.1f} degrees"
+            }
+        
+        elif augmentation_type == "flip":
+            # Random horizontal flip
+            augmented_img = transforms.functional.hflip(image)
+            return {
+                "augmented_image": augmented_img,
+                "operation": "horizontally flipped"
+            }
+        
+        elif augmentation_type == "blur":
+            # Gaussian blur
+            blur = transforms.GaussianBlur(kernel_size=(5, 5), sigma=(0.1, 2.0))
+            augmented_img = blur(image)
+            return {
+                "augmented_image": augmented_img,
+                "operation": "gaussian blur applied"
+            }
+        
+        elif augmentation_type == "brightness":
+            # Adjust brightness
+            factor = random.uniform(0.5, 1.5)
+            augmented_img = transforms.functional.adjust_brightness(image, factor)
+            return {
+                "augmented_image": augmented_img,
+                "operation": f"brightness adjusted by factor {factor:.2f}"
+            }
+        
+        else:
+            raise ValueError(f"Unsupported augmentation type: {augmentation_type}")
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/", response_class=HTMLResponse)
 async def get_homepage():
     with open("index.html") as file:
@@ -241,10 +337,24 @@ async def preprocess_file(
             result = process_text(text, preprocessing_type)
             return JSONResponse(result)
             
+        elif file.content_type.startswith('image/'):
+            # Image preprocessing
+            image = Image.open(io.BytesIO(content))
+            result = process_image(image, preprocessing_type)
+            
+            # Save processed image and return path
+            output_path = f"static/uploads/processed_{file.filename}"
+            result["processed_image"].save(output_path)
+            
+            return {
+                "processed_image_url": f"/static/uploads/processed_{file.filename}",
+                "operation": result["operation"]
+            }
+            
         else:
             raise HTTPException(
                 status_code=400, 
-                detail="Currently only text preprocessing is supported"
+                detail="Currently only text and image preprocessing is supported"
             )
         
     except ValueError as e:
@@ -265,10 +375,24 @@ async def augment_file(
             result = augment_text(text, augmentation_type)
             return JSONResponse(result)
             
+        elif file.content_type.startswith('image/'):
+            # Image augmentation
+            image = Image.open(io.BytesIO(content))
+            result = augment_image(image, augmentation_type)
+            
+            # Save augmented image and return path
+            output_path = f"static/uploads/augmented_{file.filename}"
+            result["augmented_image"].save(output_path)
+            
+            return {
+                "augmented_image_url": f"/static/uploads/augmented_{file.filename}",
+                "operation": result["operation"]
+            }
+            
         else:
             raise HTTPException(
                 status_code=400, 
-                detail="Currently only text augmentation is supported"
+                detail="Currently only text and image augmentation is supported"
             )
         
     except ValueError as e:

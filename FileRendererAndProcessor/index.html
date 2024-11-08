@@ -20,9 +20,10 @@
                     <label for="preprocessing">Preprocessing:</label>
                     <select id="preprocessing" class="dropdown" onchange="handleDropdownChange('preprocessing')">
                         <option value="">Select Preprocessing</option>
-                        <option value="resize">Resize</option>
-                        <option value="normalize">Normalize</option>
-                        <option value="grayscale">Grayscale</option>
+                        <option value="remove_stopwords">Remove Stopwords</option>
+                        <option value="lowercase">Lowercase</option>
+                        <option value="tokenize">Tokenize</option>
+                        <option value="remove_punctuation">Remove Punctuation</option>
                     </select>
                 </div>
                 
@@ -30,9 +31,9 @@
                     <label for="augmentation">Augmentation:</label>
                     <select id="augmentation" class="dropdown" onchange="handleDropdownChange('augmentation')">
                         <option value="">Select Augmentation</option>
-                        <option value="rotate">Rotate</option>
-                        <option value="flip">Flip</option>
-                        <option value="blur">Blur</option>
+                        <option value="synonym_replace">Synonym Replace</option>
+                        <option value="back_translation">Back Translation</option>
+                        <option value="random_insert">Random Insert</option>
                     </select>
                 </div>
             </div>

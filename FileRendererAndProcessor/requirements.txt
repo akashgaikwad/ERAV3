@@ -9,3 +9,4 @@ torch
 torchtext
 nltk
 deep-translator
+torchvision
