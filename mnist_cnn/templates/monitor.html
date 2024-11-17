@@ -11,14 +11,14 @@
         }
         .plot {
             margin-bottom: 20px;
+            height: 600px;  /* Made taller for better visibility */
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Training Progress</h1>
-        <div id="lossPlot" class="plot"></div>
-        <div id="accuracyPlot" class="plot"></div>
+        <div id="combinedPlot" class="plot"></div>
     </div>
 
     <script>
@@ -26,41 +26,62 @@
             fetch('/get_logs')
                 .then(response => response.json())
                 .then(data => {
-                    console.log('Received data:', data);  // Debug log
+                    console.log('Received data:', data);
 
                     const lossTrace = {
                         x: data.epochs,
                         y: data.losses,
                         mode: 'lines+markers',
-                        name: 'Training Loss'
+                        name: 'Training Loss',
+                        line: {
+                            color: 'rgb(219, 64, 82)',
+                            width: 2
+                        },
+                        yaxis: 'y1'
                     };
 
                     const accTrace = {
                         x: data.epochs,
                         y: data.accuracies,
                         mode: 'lines+markers',
-                        name: 'Training Accuracy'
+                        name: 'Training Accuracy',
+                        line: {
+                            color: 'rgb(55, 128, 191)',
+                            width: 2
+                        },
+                        yaxis: 'y2'
                     };
 
                     const layout = {
-                        autosize: true,
-                        height: 400,
-                        margin: { t: 30 }
+                        title: 'Training Progress',
+                        height: 600,
+                        margin: { t: 50 },
+                        showlegend: true,
+                        xaxis: {
+                            title: 'Epoch',
+                            domain: [0.1, 0.9]
+                        },
+                        yaxis: {
+                            title: 'Loss',
+                            titlefont: {color: 'rgb(219, 64, 82)'},
+                            tickfont: {color: 'rgb(219, 64, 82)'},
+                            side: 'left'
+                        },
+                        yaxis2: {
+                            title: 'Accuracy (%)',
+                            titlefont: {color: 'rgb(55, 128, 191)'},
+                            tickfont: {color: 'rgb(55, 128, 191)'},
+                            overlaying: 'y',
+                            side: 'right'
+                        },
+                        legend: {
+                            x: 0.1,
+                            y: 1.2,
+                            orientation: 'h'
+                        }
                     };
 
-                    Plotly.newPlot('lossPlot', [lossTrace], {
-                        ...layout,
-                        title: 'Training Loss',
-                        yaxis: { title: 'Loss' },
-                        xaxis: { title: 'Epoch' }
-                    });
-
-                    Plotly.newPlot('accuracyPlot', [accTrace], {
-                        ...layout,
-                        title: 'Training Accuracy',
-                        yaxis: { title: 'Accuracy (%)' },
-                        xaxis: { title: 'Epoch' }
-                    });
+                    Plotly.newPlot('combinedPlot', [lossTrace, accTrace], layout);
                 })
                 .catch(error => console.error('Error fetching data:', error));
         }
