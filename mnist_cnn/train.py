@@ -125,18 +125,19 @@ def get_optimizer(optimizer_name, model_parameters, lr=0.001):
     }
     return optimizers.get(optimizer_name, optimizers['adam'])()
 
-def train_model(config, model_name, training_params):
-    """Updated train_model function with enhanced logging"""
+def train_model(config, model_name):
+    """Updated train_model function with model-specific training parameters"""
     kernel_config = config['architecture']
     optimizer_name = config['optimizer']
+    training_params = config['training_params']
     batch_size = training_params['batch_size']
-    total_epochs = training_params['epochs']
+    epochs = training_params['epochs']
     
     logger.info(f'Starting training for {model_name} with:')
     logger.info(f'- Kernels: {kernel_config}')
     logger.info(f'- Optimizer: {optimizer_name}')
     logger.info(f'- Batch Size: {batch_size}')
-    logger.info(f'- Total Epochs: {total_epochs}')
+    logger.info(f'- Epochs: {epochs}')
     
     model = CNN(kernel_config).to(DEVICE)
     train_loader = load_data(batch_size)
@@ -148,13 +149,13 @@ def train_model(config, model_name, training_params):
     losses_list = []
     accuracies_list = []
     
-    for epoch in range(total_epochs):
+    for epoch in range(epochs):
         model.train()
         running_loss = 0.0
         correct = 0
         total = 0
         
-        pbar = tqdm(train_loader, desc=f'{model_name} Epoch {epoch+1}/{total_epochs}')
+        pbar = tqdm(train_loader, desc=f'{model_name} Epoch {epoch+1}/{epochs}')
         
         for batch_idx, (data, target) in enumerate(pbar):
             # Move data to MPS
@@ -177,7 +178,7 @@ def train_model(config, model_name, training_params):
             pbar.set_postfix({
                 'loss': f'{running_loss/(batch_idx+1):.4f}',
                 'acc': f'{100.*correct/total:.2f}%',
-                'remaining': f'{total_epochs-epoch-1} epochs'
+                'remaining': f'{epochs-epoch-1} epochs'
             })
         
         epoch_loss = running_loss / len(train_loader)

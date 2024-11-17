@@ -16,8 +16,8 @@ training_status = {
 def initialize_logs():
     """Initialize or reset the logs file"""
     data = {
-        'model1': {'epochs': [], 'losses': [], 'accuracies': []},
-        'model2': {'epochs': [], 'losses': [], 'accuracies': []}
+        'model1': {'config': {}, 'training_params': {}, 'progress': {}, 'epochs': [], 'losses': [], 'accuracies': []},
+        'model2': {'config': {}, 'training_params': {}, 'progress': {}, 'epochs': [], 'losses': [], 'accuracies': []}
     }
     with open(LOG_FILE, 'w') as f:
         json.dump(data, f)
@@ -33,14 +33,12 @@ def get_logs():
     try:
         with open(LOG_FILE, 'r') as f:
             data = json.load(f)
-        response = make_response(jsonify(data))
-        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        return response
+        return jsonify(data)
     except Exception as e:
         print(f"Error reading logs: {e}")
         return jsonify({
-            'model1': {'epochs': [], 'losses': [], 'accuracies': []},
-            'model2': {'epochs': [], 'losses': [], 'accuracies': []}
+            'model1': {'config': {}, 'training_params': {}, 'progress': {}, 'epochs': [], 'losses': [], 'accuracies': []},
+            'model2': {'config': {}, 'training_params': {}, 'progress': {}, 'epochs': [], 'losses': [], 'accuracies': []}
         })
 
 @app.route('/train', methods=['POST'])
@@ -52,7 +50,6 @@ def train():
         })
     
     data = request.json
-    training_params = data['training_params']
     model1_config = data['model1']
     model2_config = data['model2']
     
@@ -64,11 +61,11 @@ def train():
         
         # Train model 1
         training_status['current_model'] = 'model1'
-        train_model(model1_config, 'model1', training_params)
+        train_model(model1_config, 'model1')
         
         # Train model 2
         training_status['current_model'] = 'model2'
-        train_model(model2_config, 'model2', training_params)
+        train_model(model2_config, 'model2')
         
         training_status['is_training'] = False
         training_status['current_model'] = None
