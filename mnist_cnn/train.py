@@ -81,17 +81,22 @@ def load_data():
     logger.info(f'Number of batches: {len(train_loader)}')
     return train_loader
 
-def save_logs(model_name, epochs, losses, accuracies):
+def save_logs(model_name, config, epochs, losses, accuracies):
+    """Updated save_logs function to include model configuration"""
     try:
         with open('training_logs.json', 'r') as f:
             data = json.load(f)
     except:
         data = {
-            'model1': {'epochs': [], 'losses': [], 'accuracies': []},
-            'model2': {'epochs': [], 'losses': [], 'accuracies': []}
+            'model1': {'config': {}, 'epochs': [], 'losses': [], 'accuracies': []},
+            'model2': {'config': {}, 'epochs': [], 'losses': [], 'accuracies': []}
         }
     
     data[model_name] = {
+        'config': {
+            'architecture': config['architecture'],
+            'optimizer': config['optimizer']
+        },
         'epochs': epochs,
         'losses': losses,
         'accuracies': accuracies
@@ -99,17 +104,32 @@ def save_logs(model_name, epochs, losses, accuracies):
     
     with open('training_logs.json', 'w') as f:
         json.dump(data, f)
-    logger.info(f'Logs updated for {model_name}')
+    logger.info(f'Logs updated for {model_name} with config: {config}')
 
-def train_model(kernel_config, model_name):
-    logger.info(f'Starting training for {model_name} with kernels {kernel_config}')
+def get_optimizer(optimizer_name, model_parameters, lr=0.001):
+    """Get optimizer based on name"""
+    optimizers = {
+        'adam': lambda: optim.Adam(model_parameters, lr=lr),
+        'sgd': lambda: optim.SGD(model_parameters, lr=lr, momentum=0.9),
+        'rmsprop': lambda: optim.RMSprop(model_parameters, lr=lr),
+        'adamw': lambda: optim.AdamW(model_parameters, lr=lr, weight_decay=0.01)
+    }
+    return optimizers.get(optimizer_name, optimizers['adam'])()
+
+def train_model(config, model_name):
+    """Updated train_model function with enhanced logging"""
+    kernel_config = config['architecture']
+    optimizer_name = config['optimizer']
     
-    # Initialize model and move to MPS
+    logger.info(f'Starting training for {model_name} with:')
+    logger.info(f'- Kernels: {kernel_config}')
+    logger.info(f'- Optimizer: {optimizer_name}')
+    
     model = CNN(kernel_config).to(DEVICE)
-    
     train_loader = load_data()
+    
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    optimizer = get_optimizer(optimizer_name, model.parameters())
     
     epochs_list = []
     losses_list = []
@@ -157,7 +177,7 @@ def train_model(kernel_config, model_name):
         losses_list.append(epoch_loss)
         accuracies_list.append(epoch_acc)
         
-        save_logs(model_name, epochs_list, losses_list, accuracies_list)
+        save_logs(model_name, config, epochs_list, losses_list, accuracies_list)
     
     logger.info(f'Training completed for {model_name}!')
     return model

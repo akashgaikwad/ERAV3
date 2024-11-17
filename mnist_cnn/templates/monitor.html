@@ -56,46 +56,85 @@
             padding: 10px;
             border-radius: 4px;
         }
+        .optimizer-select {
+            margin: 10px 0;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        .config-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 8px;
+        }
+        .model-config {
+            margin: 10px;
+            padding: 15px;
+            background: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Model Comparison</h1>
         
-        <!-- Configuration Panel -->
         <div class="config-panel">
-            <h2>Model Configurations</h2>
-            <div class="model-config">
-                <h3>Model 1</h3>
-                <div class="radio-group">
-                    <label>
-                        <input type="radio" name="model1" value="balanced" checked> 
-                        Balanced (16,32,64)
-                    </label>
-                    <label>
-                        <input type="radio" name="model1" value="uniform"> 
-                        Uniform (8,8,8)
-                    </label>
-                </div>
-                <div class="config-display" id="model1-config">
-                    Current config: [16,32,64]
+            <div class="config-section">
+                <h2>Model 1</h2>
+                <div class="model-config">
+                    <h3>Architecture</h3>
+                    <div class="radio-group">
+                        <label>
+                            <input type="radio" name="model1" value="balanced" checked> 
+                            Balanced (16,32,64)
+                        </label>
+                        <label>
+                            <input type="radio" name="model1" value="uniform"> 
+                            Uniform (8,8,8)
+                        </label>
+                    </div>
+                    <div class="config-display" id="model1-config">
+                        Current config: [16,32,64]
+                    </div>
+                    
+                    <h3>Optimizer</h3>
+                    <select class="optimizer-select" id="optimizer1">
+                        <option value="adam">Adam</option>
+                        <option value="sgd">SGD with Momentum</option>
+                        <option value="rmsprop">RMSprop</option>
+                        <option value="adamw">AdamW</option>
+                    </select>
                 </div>
             </div>
-            
-            <div class="model-config">
-                <h3>Model 2</h3>
-                <div class="radio-group">
-                    <label>
-                        <input type="radio" name="model2" value="balanced"> 
-                        Balanced (16,32,64)
-                    </label>
-                    <label>
-                        <input type="radio" name="model2" value="uniform" checked> 
-                        Uniform (8,8,8)
-                    </label>
-                </div>
-                <div class="config-display" id="model2-config">
-                    Current config: [8,8,8]
+
+            <div class="config-section">
+                <h2>Model 2</h2>
+                <div class="model-config">
+                    <h3>Architecture</h3>
+                    <div class="radio-group">
+                        <label>
+                            <input type="radio" name="model2" value="balanced"> 
+                            Balanced (16,32,64)
+                        </label>
+                        <label>
+                            <input type="radio" name="model2" value="uniform" checked> 
+                            Uniform (8,8,8)
+                        </label>
+                    </div>
+                    <div class="config-display" id="model2-config">
+                        Current config: [8,8,8]
+                    </div>
+                    
+                    <h3>Optimizer</h3>
+                    <select class="optimizer-select" id="optimizer2">
+                        <option value="adam">Adam</option>
+                        <option value="sgd">SGD with Momentum</option>
+                        <option value="rmsprop">RMSprop</option>
+                        <option value="adamw">AdamW</option>
+                    </select>
                 </div>
             </div>
             
@@ -103,7 +142,6 @@
             <div id="status" class="status"></div>
         </div>
 
-        <!-- Plot -->
         <div id="combinedPlot" class="plot"></div>
     </div>
 
@@ -131,6 +169,8 @@
         function startTraining() {
             const model1Type = document.querySelector('input[name="model1"]:checked').value;
             const model2Type = document.querySelector('input[name="model2"]:checked').value;
+            const optimizer1 = document.getElementById('optimizer1').value;
+            const optimizer2 = document.getElementById('optimizer2').value;
 
             const config1 = CONFIGS[model1Type];
             const config2 = CONFIGS[model2Type];
@@ -143,8 +183,14 @@
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    model1: config1,
-                    model2: config2
+                    model1: {
+                        architecture: config1,
+                        optimizer: optimizer1
+                    },
+                    model2: {
+                        architecture: config2,
+                        optimizer: optimizer2
+                    }
                 })
             })
             .then(response => response.json())
@@ -162,12 +208,13 @@
                     const traces = [];
                     
                     // Model 1 traces
-                    if (data.model1) {
+                    if (data.model1 && data.model1.epochs.length > 0) {
+                        const model1Name = `Model 1 (${data.model1.config.optimizer})`;
                         traces.push({
                             x: data.model1.epochs,
                             y: data.model1.losses,
                             mode: 'lines+markers',
-                            name: 'Model 1 Loss',
+                            name: `${model1Name} Loss`,
                             line: {
                                 color: 'rgb(219, 64, 82)',
                                 width: 2
@@ -179,7 +226,7 @@
                             x: data.model1.epochs,
                             y: data.model1.accuracies,
                             mode: 'lines+markers',
-                            name: 'Model 1 Accuracy',
+                            name: `${model1Name} Accuracy`,
                             line: {
                                 color: 'rgb(55, 128, 191)',
                                 width: 2
@@ -189,12 +236,13 @@
                     }
 
                     // Model 2 traces
-                    if (data.model2) {
+                    if (data.model2 && data.model2.epochs.length > 0) {
+                        const model2Name = `Model 2 (${data.model2.config.optimizer})`;
                         traces.push({
                             x: data.model2.epochs,
                             y: data.model2.losses,
                             mode: 'lines+markers',
-                            name: 'Model 2 Loss',
+                            name: `${model2Name} Loss`,
                             line: {
                                 color: 'rgb(219, 64, 82)',
                                 dash: 'dash',
@@ -207,7 +255,7 @@
                             x: data.model2.epochs,
                             y: data.model2.accuracies,
                             mode: 'lines+markers',
-                            name: 'Model 2 Accuracy',
+                            name: `${model2Name} Accuracy`,
                             line: {
                                 color: 'rgb(55, 128, 191)',
                                 dash: 'dash',

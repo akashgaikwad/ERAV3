@@ -72,7 +72,6 @@ def train():
         training_status['is_training'] = False
         training_status['current_model'] = None
     
-    # Start training in background
     thread = threading.Thread(target=train_both_models)
     thread.start()
     
