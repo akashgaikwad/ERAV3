@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Training Monitor</title>
+    <title>Model Comparison Monitor</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <style>
         .container {
@@ -11,49 +11,214 @@
         }
         .plot {
             margin-bottom: 20px;
-            height: 600px;  /* Made taller for better visibility */
+            height: 600px;
+        }
+        .config-panel {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .model-config {
+            display: inline-block;
+            margin: 10px;
+            padding: 15px;
+            background: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .radio-group {
+            margin: 15px 0;
+        }
+        .radio-group label {
+            margin-right: 20px;
+            cursor: pointer;
+        }
+        .config-display {
+            margin-top: 10px;
+            font-style: italic;
+            color: #666;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Training Progress</h1>
+        <h1>Model Comparison</h1>
+        
+        <!-- Configuration Panel -->
+        <div class="config-panel">
+            <h2>Model Configurations</h2>
+            <div class="model-config">
+                <h3>Model 1</h3>
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="model1" value="balanced" checked> 
+                        Balanced (16,32,64)
+                    </label>
+                    <label>
+                        <input type="radio" name="model1" value="uniform"> 
+                        Uniform (8,8,8)
+                    </label>
+                </div>
+                <div class="config-display" id="model1-config">
+                    Current config: [16,32,64]
+                </div>
+            </div>
+            
+            <div class="model-config">
+                <h3>Model 2</h3>
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="model2" value="balanced"> 
+                        Balanced (16,32,64)
+                    </label>
+                    <label>
+                        <input type="radio" name="model2" value="uniform" checked> 
+                        Uniform (8,8,8)
+                    </label>
+                </div>
+                <div class="config-display" id="model2-config">
+                    Current config: [8,8,8]
+                </div>
+            </div>
+            
+            <button onclick="startTraining()">Train Models</button>
+            <div id="status" class="status"></div>
+        </div>
+
+        <!-- Plot -->
         <div id="combinedPlot" class="plot"></div>
     </div>
 
     <script>
+        const CONFIGS = {
+            'balanced': [16, 32, 64],
+            'uniform': [8, 8, 8]
+        };
+
+        // Update config display when radio buttons change
+        document.querySelectorAll('input[name="model1"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                document.getElementById('model1-config').textContent = 
+                    `Current config: [${CONFIGS[e.target.value]}]`;
+            });
+        });
+
+        document.querySelectorAll('input[name="model2"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                document.getElementById('model2-config').textContent = 
+                    `Current config: [${CONFIGS[e.target.value]}]`;
+            });
+        });
+
+        function startTraining() {
+            const model1Type = document.querySelector('input[name="model1"]:checked').value;
+            const model2Type = document.querySelector('input[name="model2"]:checked').value;
+
+            const config1 = CONFIGS[model1Type];
+            const config2 = CONFIGS[model2Type];
+
+            document.getElementById('status').innerHTML = 'Starting training...';
+            
+            fetch('/train', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    model1: config1,
+                    model2: config2
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('status').innerHTML = data.message;
+            });
+        }
+
         function updatePlots() {
             fetch('/get_logs')
                 .then(response => response.json())
                 .then(data => {
                     console.log('Received data:', data);
 
-                    const lossTrace = {
-                        x: data.epochs,
-                        y: data.losses,
-                        mode: 'lines+markers',
-                        name: 'Training Loss',
-                        line: {
-                            color: 'rgb(219, 64, 82)',
-                            width: 2
-                        },
-                        yaxis: 'y1'
-                    };
+                    const traces = [];
+                    
+                    // Model 1 traces
+                    if (data.model1) {
+                        traces.push({
+                            x: data.model1.epochs,
+                            y: data.model1.losses,
+                            mode: 'lines+markers',
+                            name: 'Model 1 Loss',
+                            line: {
+                                color: 'rgb(219, 64, 82)',
+                                width: 2
+                            },
+                            yaxis: 'y1'
+                        });
 
-                    const accTrace = {
-                        x: data.epochs,
-                        y: data.accuracies,
-                        mode: 'lines+markers',
-                        name: 'Training Accuracy',
-                        line: {
-                            color: 'rgb(55, 128, 191)',
-                            width: 2
-                        },
-                        yaxis: 'y2'
-                    };
+                        traces.push({
+                            x: data.model1.epochs,
+                            y: data.model1.accuracies,
+                            mode: 'lines+markers',
+                            name: 'Model 1 Accuracy',
+                            line: {
+                                color: 'rgb(55, 128, 191)',
+                                width: 2
+                            },
+                            yaxis: 'y2'
+                        });
+                    }
+
+                    // Model 2 traces
+                    if (data.model2) {
+                        traces.push({
+                            x: data.model2.epochs,
+                            y: data.model2.losses,
+                            mode: 'lines+markers',
+                            name: 'Model 2 Loss',
+                            line: {
+                                color: 'rgb(219, 64, 82)',
+                                dash: 'dash',
+                                width: 2
+                            },
+                            yaxis: 'y1'
+                        });
+
+                        traces.push({
+                            x: data.model2.epochs,
+                            y: data.model2.accuracies,
+                            mode: 'lines+markers',
+                            name: 'Model 2 Accuracy',
+                            line: {
+                                color: 'rgb(55, 128, 191)',
+                                dash: 'dash',
+                                width: 2
+                            },
+                            yaxis: 'y2'
+                        });
+                    }
 
                     const layout = {
-                        title: 'Training Progress',
+                        title: 'Model Comparison',
                         height: 600,
                         margin: { t: 50 },
                         showlegend: true,
@@ -81,13 +246,9 @@
                         }
                     };
 
-                    Plotly.newPlot('combinedPlot', [lossTrace, accTrace], layout);
-                })
-                .catch(error => console.error('Error fetching data:', error));
+                    Plotly.newPlot('combinedPlot', traces, layout);
+                });
         }
-
-        // Initial update
-        updatePlots();
 
         // Update every 2 seconds
         setInterval(updatePlots, 2000);

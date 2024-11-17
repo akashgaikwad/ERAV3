@@ -14,38 +14,39 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class CNN(nn.Module):
-    def __init__(self):
+    def __init__(self, kernel_config):
         super(CNN, self).__init__()
-        # Input: 28x28x1
+        k1, k2, k3 = kernel_config
+        
         self.network = nn.Sequential(
-            nn.Conv2d(1, 32, kernel_size=3, padding=1),    # 28x28x32
+            nn.Conv2d(1, k1, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.MaxPool2d(2, 2),                            # 14x14x32
+            nn.MaxPool2d(2, 2),
             
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),   # 14x14x64
+            nn.Conv2d(k1, k2, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.MaxPool2d(2, 2),                            # 7x7x64
+            nn.MaxPool2d(2, 2),
             
-            nn.Conv2d(64, 128, kernel_size=3, padding=1),  # 7x7x128
+            nn.Conv2d(k2, k3, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.MaxPool2d(2, 2),                            # 3x3x128
+            nn.MaxPool2d(2, 2),
             
-            nn.Flatten(),                                  # 128 * 3 * 3 = 1152
-            nn.Linear(1152, 512),                          # Corrected input dimension
+            nn.Flatten(),
+            nn.Linear(k3 * 3 * 3, 512),
             nn.ReLU(),
             nn.Dropout(0.5),
             nn.Linear(512, 10)
         )
         
         # Print model summary
-        logger.info(f'Model architecture:')
+        logger.info(f'Model architecture with kernels {kernel_config}:')
         total_params = sum(p.numel() for p in self.parameters())
         logger.info(f'Total parameters: {total_params:,}')
 
     def forward(self, x):
         return self.network(x)
 
-# Check CUDA availability
+# Device configuration
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 logger.info(f'Using device: {device}')
 if torch.cuda.is_available():
@@ -68,62 +69,42 @@ def load_data():
         train_dataset, 
         batch_size=BATCH_SIZE, 
         shuffle=True,
-        drop_last=True,  # Drop the last incomplete batch
-        num_workers=2    # Use multiple workers for loading
+        drop_last=True,
+        num_workers=2,
+        pin_memory=torch.cuda.is_available()
     )
     
-    logger.info(f'Dataset size: {len(train_dataset)}')
-    logger.info(f'Number of batches: {len(train_loader)}')
     return train_loader
 
-def save_logs(epochs, losses, accuracies):
-    data = {
+def save_logs(model_name, epochs, losses, accuracies):
+    try:
+        with open('training_logs.json', 'r') as f:
+            data = json.load(f)
+    except:
+        data = {
+            'model1': {'epochs': [], 'losses': [], 'accuracies': []},
+            'model2': {'epochs': [], 'losses': [], 'accuracies': []}
+        }
+    
+    data[model_name] = {
         'epochs': epochs,
         'losses': losses,
         'accuracies': accuracies
     }
+    
     with open('training_logs.json', 'w') as f:
         json.dump(data, f)
-    logger.info(f'Logs saved to training_logs.json')
+    logger.info(f'Logs updated for {model_name}')
 
-# Add function to calculate output size
-def get_conv_output_size(input_size, kernel_size, stride=1, padding=0):
-    return ((input_size + 2 * padding - kernel_size) // stride) + 1
-
-def train():
+def train_model(kernel_config, model_name):
+    logger.info(f'Starting training for {model_name} with kernels {kernel_config}')
+    
     train_loader = load_data()
-    model = CNN().to(device)
-    
-    # Debug dimensions
-    sample_batch = next(iter(train_loader))[0]
-    x = sample_batch
-    logger.info(f'Input shape: {x.shape}')
-    
-    x = model.network[0](x)  # First conv
-    logger.info(f'After first conv: {x.shape}')
-    
-    x = model.network[2](x)  # First pool
-    logger.info(f'After first pool: {x.shape}')
-    
-    x = model.network[3](x)  # Second conv
-    logger.info(f'After second conv: {x.shape}')
-    
-    x = model.network[5](x)  # Second pool
-    logger.info(f'After second pool: {x.shape}')
-    
-    x = model.network[6](x)  # Third conv
-    logger.info(f'After third conv: {x.shape}')
-    
-    x = model.network[8](x)  # Third pool
-    logger.info(f'After third pool: {x.shape}')
-    
-    x = model.network[9](x)  # Flatten
-    logger.info(f'After flatten: {x.shape}')
+    model = CNN(kernel_config).to(device)
     
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
     
-    logger.info('Starting training...')
     epochs_list = []
     losses_list = []
     accuracies_list = []
@@ -134,10 +115,11 @@ def train():
         correct = 0
         total = 0
         
-        pbar = tqdm(train_loader, desc=f'Epoch {epoch+1}/{EPOCHS}')
+        pbar = tqdm(train_loader, desc=f'{model_name} Epoch {epoch+1}/{EPOCHS}')
         
         for batch_idx, (data, target) in enumerate(pbar):
-            data, target = data.to(device), target.to(device)
+            data = data.to(device, non_blocking=True)
+            target = target.to(device, non_blocking=True)
             
             optimizer.zero_grad()
             output = model(data)
@@ -159,7 +141,7 @@ def train():
         epoch_loss = running_loss / len(train_loader)
         epoch_acc = 100. * correct / total
         
-        logger.info(f'Epoch {epoch+1}/{EPOCHS}:')
+        logger.info(f'{model_name} Epoch {epoch+1}/{EPOCHS}:')
         logger.info(f'Average Loss: {epoch_loss:.4f}')
         logger.info(f'Accuracy: {epoch_acc:.2f}%')
         
@@ -167,13 +149,12 @@ def train():
         losses_list.append(epoch_loss)
         accuracies_list.append(epoch_acc)
         
-        save_logs(epochs_list, losses_list, accuracies_list)
+        save_logs(model_name, epochs_list, losses_list, accuracies_list)
     
-    logger.info('Training completed!')
+    logger.info(f'Training completed for {model_name}!')
+    return model
 
 if __name__ == '__main__':
-    try:
-        train()
-    except Exception as e:
-        logger.error(f'Training failed: {str(e)}')
-        raise
+    # For testing individual model training
+    test_config = [16, 32, 64]
+    train_model(test_config, 'model1')
