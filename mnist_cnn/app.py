@@ -52,6 +52,7 @@ def train():
         })
     
     data = request.json
+    training_params = data['training_params']
     model1_config = data['model1']
     model2_config = data['model2']
     
@@ -63,11 +64,11 @@ def train():
         
         # Train model 1
         training_status['current_model'] = 'model1'
-        train_model(model1_config, 'model1')
+        train_model(model1_config, 'model1', training_params)
         
         # Train model 2
         training_status['current_model'] = 'model2'
-        train_model(model2_config, 'model2')
+        train_model(model2_config, 'model2', training_params)
         
         training_status['is_training'] = False
         training_status['current_model'] = None

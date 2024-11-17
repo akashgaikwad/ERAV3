@@ -61,7 +61,7 @@ class CNN(nn.Module):
     def forward(self, x):
         return self.network(x)
 
-def load_data():
+def load_data(batch_size):
     transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize((0.1307,), (0.3081,))
@@ -70,7 +70,7 @@ def load_data():
     train_dataset = datasets.MNIST('data', train=True, download=True, transform=transform)
     train_loader = DataLoader(
         train_dataset, 
-        batch_size=BATCH_SIZE, 
+        batch_size=batch_size, 
         shuffle=True,
         drop_last=True,
         num_workers=NUM_WORKERS,
@@ -81,21 +81,30 @@ def load_data():
     logger.info(f'Number of batches: {len(train_loader)}')
     return train_loader
 
-def save_logs(model_name, config, epochs, losses, accuracies):
-    """Updated save_logs function to include model configuration"""
+def save_logs(model_name, config, training_params, current_epoch, epochs, losses, accuracies):
+    """Updated save_logs function to include training parameters and progress"""
     try:
         with open('training_logs.json', 'r') as f:
             data = json.load(f)
     except:
         data = {
-            'model1': {'config': {}, 'epochs': [], 'losses': [], 'accuracies': []},
-            'model2': {'config': {}, 'epochs': [], 'losses': [], 'accuracies': []}
+            'model1': {'config': {}, 'training_params': {}, 'progress': {}, 'epochs': [], 'losses': [], 'accuracies': []},
+            'model2': {'config': {}, 'training_params': {}, 'progress': {}, 'epochs': [], 'losses': [], 'accuracies': []}
         }
     
     data[model_name] = {
         'config': {
             'architecture': config['architecture'],
             'optimizer': config['optimizer']
+        },
+        'training_params': {
+            'batch_size': training_params['batch_size'],
+            'total_epochs': training_params['epochs']
+        },
+        'progress': {
+            'current_epoch': current_epoch,
+            'epochs_remaining': training_params['epochs'] - current_epoch,
+            'completion_percentage': (current_epoch / training_params['epochs']) * 100
         },
         'epochs': epochs,
         'losses': losses,
@@ -104,7 +113,7 @@ def save_logs(model_name, config, epochs, losses, accuracies):
     
     with open('training_logs.json', 'w') as f:
         json.dump(data, f)
-    logger.info(f'Logs updated for {model_name} with config: {config}')
+    logger.info(f'Logs updated for {model_name}')
 
 def get_optimizer(optimizer_name, model_parameters, lr=0.001):
     """Get optimizer based on name"""
@@ -116,17 +125,21 @@ def get_optimizer(optimizer_name, model_parameters, lr=0.001):
     }
     return optimizers.get(optimizer_name, optimizers['adam'])()
 
-def train_model(config, model_name):
+def train_model(config, model_name, training_params):
     """Updated train_model function with enhanced logging"""
     kernel_config = config['architecture']
     optimizer_name = config['optimizer']
+    batch_size = training_params['batch_size']
+    total_epochs = training_params['epochs']
     
     logger.info(f'Starting training for {model_name} with:')
     logger.info(f'- Kernels: {kernel_config}')
     logger.info(f'- Optimizer: {optimizer_name}')
+    logger.info(f'- Batch Size: {batch_size}')
+    logger.info(f'- Total Epochs: {total_epochs}')
     
     model = CNN(kernel_config).to(DEVICE)
-    train_loader = load_data()
+    train_loader = load_data(batch_size)
     
     criterion = nn.CrossEntropyLoss()
     optimizer = get_optimizer(optimizer_name, model.parameters())
@@ -135,13 +148,13 @@ def train_model(config, model_name):
     losses_list = []
     accuracies_list = []
     
-    for epoch in range(EPOCHS):
+    for epoch in range(total_epochs):
         model.train()
         running_loss = 0.0
         correct = 0
         total = 0
         
-        pbar = tqdm(train_loader, desc=f'{model_name} Epoch {epoch+1}/{EPOCHS}')
+        pbar = tqdm(train_loader, desc=f'{model_name} Epoch {epoch+1}/{total_epochs}')
         
         for batch_idx, (data, target) in enumerate(pbar):
             # Move data to MPS
@@ -163,21 +176,18 @@ def train_model(config, model_name):
             
             pbar.set_postfix({
                 'loss': f'{running_loss/(batch_idx+1):.4f}',
-                'acc': f'{100.*correct/total:.2f}%'
+                'acc': f'{100.*correct/total:.2f}%',
+                'remaining': f'{total_epochs-epoch-1} epochs'
             })
         
         epoch_loss = running_loss / len(train_loader)
         epoch_acc = 100. * correct / total
         
-        logger.info(f'{model_name} Epoch {epoch+1}/{EPOCHS}:')
-        logger.info(f'Average Loss: {epoch_loss:.4f}')
-        logger.info(f'Accuracy: {epoch_acc:.2f}%')
-        
         epochs_list.append(epoch + 1)
         losses_list.append(epoch_loss)
         accuracies_list.append(epoch_acc)
         
-        save_logs(model_name, config, epochs_list, losses_list, accuracies_list)
+        save_logs(model_name, config, training_params, epoch + 1, epochs_list, losses_list, accuracies_list)
     
     logger.info(f'Training completed for {model_name}!')
     return model

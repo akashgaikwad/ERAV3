@@ -73,6 +73,54 @@
             padding: 10px;
             border-radius: 4px;
         }
+        .global-params {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 8px;
+        }
+        .params-container {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        .param-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .param-group label {
+            font-weight: bold;
+            min-width: 100px;
+        }
+        .param-select {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            width: 120px;
+            font-size: 14px;
+        }
+        .status-panel {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+        
+        .model-status {
+            padding: 10px;
+            background: white;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .progress-info {
+            margin: 5px 0;
+            color: #666;
+        }
     </style>
 </head>
 <body>
@@ -80,6 +128,33 @@
         <h1>Model Comparison</h1>
         
         <div class="config-panel">
+            <!-- Global Training Parameters -->
+            <div class="global-params">
+                <h2>Training Parameters</h2>
+                <div class="params-container">
+                    <div class="param-group">
+                        <label for="batch-size">Batch Size:</label>
+                        <select id="batch-size" class="param-select">
+                            <option value="32">32</option>
+                            <option value="64">64</option>
+                            <option value="128">128</option>
+                            <option value="256">256</option>
+                            <option value="512" selected>512</option>
+                        </select>
+                    </div>
+                    <div class="param-group">
+                        <label for="epochs">Epochs:</label>
+                        <select id="epochs" class="param-select">
+                            <option value="5">5</option>
+                            <option value="10" selected>10</option>
+                            <option value="15">15</option>
+                            <option value="20">20</option>
+                            <option value="25">25</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
             <div class="models-container">
                 <div class="config-section">
                     <h2>Model 1</h2>
@@ -143,6 +218,11 @@
         </div>
 
         <div id="combinedPlot" class="plot"></div>
+
+        <div class="status-panel">
+            <div class="model-status" id="model1-status"></div>
+            <div class="model-status" id="model2-status"></div>
+        </div>
     </div>
 
     <script>
@@ -171,6 +251,8 @@
             const model2Type = document.querySelector('input[name="model2"]:checked').value;
             const optimizer1 = document.getElementById('optimizer1').value;
             const optimizer2 = document.getElementById('optimizer2').value;
+            const batchSize = parseInt(document.getElementById('batch-size').value);
+            const epochs = parseInt(document.getElementById('epochs').value);
 
             const config1 = CONFIGS[model1Type];
             const config2 = CONFIGS[model2Type];
@@ -183,6 +265,10 @@
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
+                    training_params: {
+                        batch_size: batchSize,
+                        epochs: epochs
+                    },
                     model1: {
                         architecture: config1,
                         optimizer: optimizer1
@@ -199,10 +285,42 @@
             });
         }
 
+        function updateStatus(data) {
+            for (let modelName of ['model1', 'model2']) {
+                const statusDiv = document.getElementById(`${modelName}-status`);
+                const modelData = data[modelName];
+                
+                if (modelData && modelData.training_params) {
+                    const progress = modelData.progress;
+                    const params = modelData.training_params;
+                    
+                    statusDiv.innerHTML = `
+                        <h3>${modelName.toUpperCase()}</h3>
+                        <div class="progress-info">
+                            Batch Size: ${params.batch_size}
+                        </div>
+                        <div class="progress-info">
+                            Progress: ${progress.current_epoch}/${params.total_epochs} epochs
+                            (${progress.completion_percentage.toFixed(1)}%)
+                        </div>
+                        <div class="progress-info">
+                            Remaining: ${progress.epochs_remaining} epochs
+                        </div>
+                    `;
+                } else {
+                    statusDiv.innerHTML = `
+                        <h3>${modelName.toUpperCase()}</h3>
+                        <div class="progress-info">Waiting to start...</div>
+                    `;
+                }
+            }
+        }
+
         function updatePlots() {
             fetch('/get_logs')
                 .then(response => response.json())
                 .then(data => {
+                    updateStatus(data);  // Update status panel
                     console.log('Received data:', data);
 
                     const traces = [];
