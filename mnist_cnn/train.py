@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 import json
 from tqdm import tqdm
 import logging
+from torchvision import datasets, transforms
 
 # Set up logging
 logging.basicConfig(
@@ -12,6 +13,20 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# MPS (Metal Performance Shaders) Setup for Apple Silicon
+if torch.backends.mps.is_available():
+    DEVICE = torch.device("mps")
+    logger.info("Using Apple Metal GPU")
+else:
+    DEVICE = torch.device("cpu")
+    logger.warning("MPS is not available. Using CPU instead.")
+
+# Hyperparameters
+BATCH_SIZE = 512
+EPOCHS = 10
+LEARNING_RATE = 0.001
+NUM_WORKERS = 2  # MPS works better with fewer workers
 
 class CNN(nn.Module):
     def __init__(self, kernel_config):
@@ -46,19 +61,7 @@ class CNN(nn.Module):
     def forward(self, x):
         return self.network(x)
 
-# Device configuration
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-logger.info(f'Using device: {device}')
-if torch.cuda.is_available():
-    logger.info(f'GPU: {torch.cuda.get_device_name(0)}')
-
-# Hyperparameters
-BATCH_SIZE = 512
-EPOCHS = 10
-LEARNING_RATE = 0.001
-
 def load_data():
-    from torchvision import datasets, transforms
     transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize((0.1307,), (0.3081,))
@@ -70,10 +73,12 @@ def load_data():
         batch_size=BATCH_SIZE, 
         shuffle=True,
         drop_last=True,
-        num_workers=2,
-        pin_memory=torch.cuda.is_available()
+        num_workers=NUM_WORKERS,
+        pin_memory=True
     )
     
+    logger.info(f'Dataset size: {len(train_dataset)}')
+    logger.info(f'Number of batches: {len(train_loader)}')
     return train_loader
 
 def save_logs(model_name, epochs, losses, accuracies):
@@ -99,9 +104,10 @@ def save_logs(model_name, epochs, losses, accuracies):
 def train_model(kernel_config, model_name):
     logger.info(f'Starting training for {model_name} with kernels {kernel_config}')
     
-    train_loader = load_data()
-    model = CNN(kernel_config).to(device)
+    # Initialize model and move to MPS
+    model = CNN(kernel_config).to(DEVICE)
     
+    train_loader = load_data()
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
     
@@ -118,18 +124,20 @@ def train_model(kernel_config, model_name):
         pbar = tqdm(train_loader, desc=f'{model_name} Epoch {epoch+1}/{EPOCHS}')
         
         for batch_idx, (data, target) in enumerate(pbar):
-            data = data.to(device, non_blocking=True)
-            target = target.to(device, non_blocking=True)
+            # Move data to MPS
+            data = data.to(DEVICE)
+            target = target.to(DEVICE)
             
-            optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True)
             output = model(data)
             loss = criterion(output, target)
             loss.backward()
             optimizer.step()
             
-            _, predicted = output.max(1)
-            total += target.size(0)
-            correct += predicted.eq(target).sum().item()
+            with torch.no_grad():
+                _, predicted = output.max(1)
+                total += target.size(0)
+                correct += predicted.eq(target).sum().item()
             
             running_loss += loss.item()
             
