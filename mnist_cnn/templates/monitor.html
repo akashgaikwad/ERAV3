@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MNIST Training Monitor</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>MNIST CNN Training Monitor</h1>
+        <div id="loss-plot"></div>
+        <div id="accuracy-plot"></div>
+    </div>
+
+    <script>
+        function updatePlots() {
+            fetch('/get_logs')
+                .then(response => response.json())
+                .then(data => {
+                    const lossTrace = {
+                        x: data.epochs,
+                        y: data.losses,
+                        mode: 'lines+markers',
+                        name: 'Training Loss'
+                    };
+
+                    const accTrace = {
+                        x: data.epochs,
+                        y: data.accuracies,
+                        mode: 'lines+markers',
+                        name: 'Training Accuracy'
+                    };
+
+                    Plotly.newPlot('loss-plot', [lossTrace], {
+                        title: 'Training Loss',
+                        xaxis: { title: 'Epoch' },
+                        yaxis: { title: 'Loss' }
+                    });
+
+                    Plotly.newPlot('accuracy-plot', [accTrace], {
+                        title: 'Training Accuracy',
+                        xaxis: { title: 'Epoch' },
+                        yaxis: { title: 'Accuracy' }
+                    });
+                });
+        }
+
+        setInterval(updatePlots, 2000);
+    </script>
+</body>
+</html> 
