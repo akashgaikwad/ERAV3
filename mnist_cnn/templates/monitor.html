@@ -1,15 +1,24 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>MNIST Training Monitor</title>
+    <title>Training Monitor</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .container {
+            width: 90%;
+            margin: auto;
+            padding: 20px;
+        }
+        .plot {
+            margin-bottom: 20px;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
-        <h1>MNIST CNN Training Monitor</h1>
-        <div id="loss-plot"></div>
-        <div id="accuracy-plot"></div>
+        <h1>Training Progress</h1>
+        <div id="lossPlot" class="plot"></div>
+        <div id="accuracyPlot" class="plot"></div>
     </div>
 
     <script>
@@ -17,6 +26,8 @@
             fetch('/get_logs')
                 .then(response => response.json())
                 .then(data => {
+                    console.log('Received data:', data);  // Debug log
+
                     const lossTrace = {
                         x: data.epochs,
                         y: data.losses,
@@ -31,20 +42,33 @@
                         name: 'Training Accuracy'
                     };
 
-                    Plotly.newPlot('loss-plot', [lossTrace], {
+                    const layout = {
+                        autosize: true,
+                        height: 400,
+                        margin: { t: 30 }
+                    };
+
+                    Plotly.newPlot('lossPlot', [lossTrace], {
+                        ...layout,
                         title: 'Training Loss',
-                        xaxis: { title: 'Epoch' },
-                        yaxis: { title: 'Loss' }
+                        yaxis: { title: 'Loss' },
+                        xaxis: { title: 'Epoch' }
                     });
 
-                    Plotly.newPlot('accuracy-plot', [accTrace], {
+                    Plotly.newPlot('accuracyPlot', [accTrace], {
+                        ...layout,
                         title: 'Training Accuracy',
-                        xaxis: { title: 'Epoch' },
-                        yaxis: { title: 'Accuracy' }
+                        yaxis: { title: 'Accuracy (%)' },
+                        xaxis: { title: 'Epoch' }
                     });
-                });
+                })
+                .catch(error => console.error('Error fetching data:', error));
         }
 
+        // Initial update
+        updatePlots();
+
+        // Update every 2 seconds
         setInterval(updatePlots, 2000);
     </script>
 </body>
