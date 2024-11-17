@@ -13,10 +13,10 @@ ssl._create_default_https_context = ssl._create_unverified_context
 def save_logs(epochs, losses, accuracies):
     data = {
         'epochs': epochs,
-        'loss': losses,
-        'accuracy': accuracies
+        'losses': losses,
+        'accuracies': accuracies
     }
-    with open('training_log.json', 'w') as f:
+    with open('training_logs.json', 'w') as f:
         json.dump(data, f)
 
 def train():
